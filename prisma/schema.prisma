@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model access {
+  id_role       Int
+  id_permission Int
+
+  @@id([id_role, id_permission])
+}
+
+model connection {
+  id_connection Int       @id
+  requester_id  Int
+  adressee_id   Int
+  status        String?   @db.VarChar
+  request_at    DateTime? @db.Timestamptz(6)
+  respondend_at DateTime? @db.Timestamptz(6)
+}
+
+model course {
+  id_course  Int     @id
+  name       String? @db.VarChar
+  id_program Int?
+}
+
+model enrollment {
+  id_enrollment Int  @id
+  id_user       Int?
+  id_course     Int?
+}
+
+model event {
+  id_event    Int       @id
+  title       String?   @db.VarChar
+  description String?   @db.VarChar
+  event_date  DateTime? @db.Timestamptz(6)
+  id_program  Int?
+  image       String?
+}
+
+model group {
+  id_group    Int     @id
+  name        String? @db.VarChar
+  description String? @db.VarChar
+  id_course   Int?
+  owner_id    Int?
+}
+
+model membership {
+  id_membership Int       @id
+  id_user       Int?
+  id_group      Int?
+  is_admin      Boolean?
+  joined_at     DateTime? @db.Timestamptz(6)
+}
+
+model message {
+  id_message    Int       @id
+  id_membership Int?
+  text_content  String?   @db.VarChar
+  send_at       DateTime? @db.Timestamptz(6)
+  attachments   String?
+}
+
+model notification {
+  id_notification   Int       @id
+  id_user           Int?
+  message           String?   @db.VarChar
+  is_read           Boolean?
+  created_at        DateTime? @db.Timestamptz(6)
+  related_entity_id Int?
+}
+
+model permission {
+  id_permission Int    @id
+  name          Int
+  description   String @db.VarChar
+  claim         String @db.VarChar
+}
+
+model program {
+  id_program Int     @id
+  name       String? @db.VarChar
+}
+
+model role {
+  id_role Int     @id
+  name    String? @db.VarChar
+}
+
+model user {
+  id_role    Int
+  id_user    Int     @id
+  full_name  String  @db.VarChar
+  cell_phone String? @db.VarChar
+  picture    String? @db.VarChar
+  id_program Int?
+}
