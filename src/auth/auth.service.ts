@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { RolesService } from 'src/roles/roles.service';
@@ -10,8 +11,10 @@ export class AuthService {
         private usersService: UsersService,
         private jwtService: JwtService,
         private rolesService: RolesService,
-        private permissionsService: PermissionsService
-    ) { }
+        private permissionsService: PermissionsService,
+        private configService: ConfigService
+    ) {
+    }
 
     async googleLogin(accessToken: string) {
         const googleUser = await this.validateGoogleToken(accessToken);
@@ -49,8 +52,9 @@ export class AuthService {
 
         const permissionsClaims = await this.permissionsService.getClaimsForRole(user.id_role);
 
-        const jwt = this.jwtService.sign({ sub: user.id_user, permissions: permissionsClaims.map(p => p.claim) });
-
+        const payload = { sub: user.id_user, permissions: permissionsClaims.map(p => p.claim) };
+                
+        const jwt = this.jwtService.sign(payload);
         return {
             access_token: jwt,
             user,            
@@ -67,5 +71,4 @@ export class AuthService {
 
         return await response.json();
     }
-
 }
