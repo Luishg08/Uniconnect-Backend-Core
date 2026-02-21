@@ -9,6 +9,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install
 
 COPY . .
+RUN npx prisma generate
 RUN pnpm build
 
 
@@ -23,7 +24,11 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+
+RUN npx prisma generate
+
 
 EXPOSE 8007
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
