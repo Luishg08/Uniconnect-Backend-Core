@@ -1,20 +1,20 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from "passport-jwt";
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-    constructor(){
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+    constructor(configService: ConfigService){
+        const secret = configService.get<string>('JWT_SECRET') || 'uniconnect-test-key';        
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: process.env.JWT_SECRET || 'uniconnect-test-key'
+            secretOrKey: secret,
         });
     }
 
-    // Método de validación que se ejecuta después de verificar el token JWT
     async validate(payload: any){
         return payload;
     }
-
 }
