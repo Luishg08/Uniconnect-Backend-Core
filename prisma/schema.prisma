@@ -14,7 +14,7 @@ model access {
 }
 
 model connection {
-  id_connection Int       @id
+  id_connection Int       @id @default(autoincrement())
   requester_id  Int
   adressee_id   Int
   status        String?   @db.VarChar
@@ -23,19 +23,19 @@ model connection {
 }
 
 model course {
-  id_course  Int     @id
+  id_course  Int     @id @default(autoincrement())
   name       String? @db.VarChar
   id_program Int?
 }
 
 model enrollment {
-  id_enrollment Int  @id
+  id_enrollment Int  @id @default(autoincrement())
   id_user       Int?
   id_course     Int?
 }
 
 model event {
-  id_event    Int       @id
+  id_event    Int       @id @default(autoincrement())
   title       String?   @db.VarChar
   description String?   @db.VarChar
   event_date  DateTime? @db.Timestamptz(6)
@@ -44,7 +44,7 @@ model event {
 }
 
 model group {
-  id_group    Int     @id
+  id_group    Int     @id @default(autoincrement())
   name        String? @db.VarChar
   description String? @db.VarChar
   id_course   Int?
@@ -52,7 +52,7 @@ model group {
 }
 
 model membership {
-  id_membership Int       @id
+  id_membership Int       @id @default(autoincrement())
   id_user       Int?
   id_group      Int?
   is_admin      Boolean?
@@ -60,7 +60,7 @@ model membership {
 }
 
 model message {
-  id_message    Int       @id
+  id_message    Int       @id @default(autoincrement())
   id_membership Int?
   text_content  String?   @db.VarChar
   send_at       DateTime? @db.Timestamptz(6)
@@ -68,7 +68,7 @@ model message {
 }
 
 model notification {
-  id_notification   Int       @id
+  id_notification   Int       @id @default(autoincrement())
   id_user           Int?
   message           String?   @db.VarChar
   is_read           Boolean?
@@ -77,27 +77,28 @@ model notification {
 }
 
 model permission {
-  id_permission Int    @id
-  name          Int
+  id_permission Int    @id @default(autoincrement())
+  name          String @db.VarChar
   description   String @db.VarChar
   claim         String @db.VarChar
 }
 
 model program {
-  id_program Int     @id
+  id_program Int     @id @default(autoincrement())
   name       String? @db.VarChar
 }
 
 model role {
-  id_role Int     @id
+  id_role Int     @id @default(autoincrement())
   name    String? @db.VarChar
 }
 
 model user {
   id_role    Int
-  id_user    Int     @id
+  id_user    Int     @id @default(autoincrement())
   full_name  String  @db.VarChar
   cell_phone String? @db.VarChar
   picture    String? @db.VarChar
+  email      String  @db.VarChar
   id_program Int?
 }
