@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { RolesService } from 'src/roles/roles.service';
@@ -16,11 +16,20 @@ export class AuthService {
     async googleLogin(accessToken: string) {
         const googleUser = await this.validateGoogleToken(accessToken);
         if (!googleUser || !googleUser.email_verified) {
-            return {
+            throw new UnauthorizedException({
                 success: false,
                 statusCode: 401,
                 message: 'Invalid Google token or email not verified'
-            }
+            });
+        }
+
+        const domain = googleUser.email.split('@')[1]
+        if (domain !== 'ucaldas.edu.co') {
+            throw new UnauthorizedException({
+                success: false,
+                statusCode: 401,
+                message: 'Email domain not allowed'
+            });
         }
 
         let user = await this.usersService.findByEmail(googleUser.email);
