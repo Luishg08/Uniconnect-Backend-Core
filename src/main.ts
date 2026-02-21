@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,9 +13,16 @@ async function bootstrap() {
     .setTitle('Uniconnect API')
     .setDescription('Documentación oficial de la API Uniconnect')
     .setVersion('1.0')
-    .addBearerAuth() // para JWT después
+    .addBearerAuth()
     .build();
-
+    // Para validar las solicitudes entrantes
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
   const document = SwaggerModule.createDocument(app, config);
 
   SwaggerModule.setup('docs', app, document);
