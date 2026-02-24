@@ -7,6 +7,9 @@ import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RolesService } from './roles/roles.service';
 import { PermissionsService } from './permissions/permissions.service';
+import { CoursesModule } from './courses/courses.module';
+import { ProgramsModule } from './programs/programs.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
 
 @Module({
    imports: [
@@ -17,6 +20,9 @@ import { PermissionsService } from './permissions/permissions.service';
     AuthModule,
     UsersModule,
     PrismaModule,
+    CoursesModule,
+    ProgramsModule,
+    EnrollmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
