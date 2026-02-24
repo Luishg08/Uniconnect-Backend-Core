@@ -10,6 +10,7 @@ import { PermissionsService } from './permissions/permissions.service';
 import { CoursesModule } from './courses/courses.module';
 import { ProgramsModule } from './programs/programs.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
+import { GroupsModule } from './groups/groups.module';
 
 @Module({
    imports: [
@@ -23,6 +24,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
     CoursesModule,
     ProgramsModule,
     EnrollmentsModule,
+    GroupsModule,
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
