@@ -1,0 +1,61 @@
+import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, Patch } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { GroupsService } from './groups.service';
+import { CreateGroupDto } from './dto/create-group.dto';
+import { UpdateGroupDto } from './dto/update-group.dto';
+
+@ApiTags('groups') 
+@Controller('groups')
+export class GroupsController {
+  constructor(private readonly groupsService: GroupsService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Crear un nuevo grupo de estudio y asignar owner como admin' })
+  @ApiResponse({ status: 201, description: 'El grupo y la membresía han sido creados.' })
+  @ApiResponse({ status: 404, description: 'El curso especificado no existe.' })
+  @ApiResponse({ status: 500, description: 'Error interno al procesar la transacción.' })
+  create(@Body() createGroupDto: CreateGroupDto) {
+    return this.groupsService.create(createGroupDto);
+  }
+
+  @Get('user/:userId')
+  @ApiOperation({ summary: 'Listar grupos donde el usuario es miembro' })
+  @ApiResponse({ status: 200, description: 'Lista de grupos con conteo de miembros.' })
+  findAll(@Param('userId', ParseIntPipe) userId: number) {
+    return this.groupsService.findAllByUser(userId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Obtener detalle de un grupo específico' })
+  @ApiResponse({ status: 200, description: 'Datos del grupo encontrados.' })
+  @ApiResponse({ status: 404, description: 'Grupo no encontrado.' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.groupsService.findOne(id); 
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Eliminar un grupo (Solo permitido al owner)' })
+  @ApiQuery({ name: 'userId', description: 'ID del usuario autenticado para verificar propiedad' })
+  @ApiResponse({ status: 200, description: 'Grupo eliminado exitosamente.' })
+  @ApiResponse({ status: 403, description: 'Prohibido: El usuario no es el dueño del grupo.' })
+  remove(
+    @Param('id', ParseIntPipe) id: number, 
+    @Query('userId', ParseIntPipe) userId: number
+  ) {
+    return this.groupsService.remove(id, userId);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Actualizar información del grupo (Solo owner)' })
+  @ApiQuery({ name: 'userId', description: 'ID del usuario para verificar propiedad' })
+  @ApiResponse({ status: 200, description: 'Grupo actualizado correctamente.' })
+  @ApiResponse({ status: 403, description: 'No tienes permisos para editar este grupo.' })
+  @ApiResponse({ status: 404, description: 'Grupo no encontrado.' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('userId', ParseIntPipe) userId: number,
+    @Body() updateGroupDto: UpdateGroupDto,
+  ) {
+    return this.groupsService.update(id, userId, updateGroupDto);
+  }
+}
