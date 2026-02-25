@@ -1,7 +1,9 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { UsersService } from './users.service';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
 
 @ApiTags('Users')
 @ApiBearerAuth()  
@@ -29,4 +31,11 @@ export class UsersController {
             id_course: id_course ? Number(id_course) : undefined,
         });
     }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('profile')
+    async getProfile(@GetClaim('sub') userId: number) {
+        return this.usersService.getProfile(userId);
+    }
+
 }

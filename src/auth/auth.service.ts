@@ -93,4 +93,8 @@ export class AuthService {
             user,            
         };
     }
+
+    async decodeToken(token: string): Promise<any> {
+    return this.jwtService.decode(token);
+    }
 }
