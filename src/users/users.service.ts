@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { ProfileUpdateDto } from './dto/google-user-info.dto';
 
 @Injectable()
 export class UsersService {
@@ -129,6 +130,17 @@ export class UsersService {
           state: e.status,
         })),
       };
+    });
+  }
+
+  async updateProfile(userId: number, data: ProfileUpdateDto) {
+    return (this.prisma.user as any).update({
+      where: { id_user: userId },
+      data: {
+        current_semester: parseInt(data.current_semester || '0') || 0,
+        picture: data.image,
+        cell_phone: data.phone,
+      },
     });
   }
 

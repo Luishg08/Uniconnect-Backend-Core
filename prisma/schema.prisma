@@ -123,7 +123,7 @@ model user {
   id_user              Int            @id @default(autoincrement())
   full_name            String         @db.VarChar
   cell_phone           String?        @db.VarChar
-  picture              String?        @db.VarChar
+  picture              String?        @db.Text
   email                String         @db.VarChar
   google_sub            String?        @db.VarChar
   current_semester     Int?
