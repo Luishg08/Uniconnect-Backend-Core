@@ -25,4 +25,32 @@ export class CoursesService {
       },
     });
   }
+
+  async getCoursesByStudent(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id_user: userId },
+      select: { 
+        id_program: true,
+        enrollments: {
+          select: {
+            id_course: true,
+          },
+        },
+      },          
+    });
+
+    const enrolledCourseIds = user?.enrollments
+      .map(e => e.id_course)
+      .filter((id): id is number => id !== null) ?? [];
+
+    return this.prisma.course.findMany({
+      where: {
+        id_program: user?.id_program ?? null,
+        id_course: {
+          notIn: enrolledCourseIds, 
+        },
+      }
+    });
+  }
+
 }

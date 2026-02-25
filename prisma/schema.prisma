@@ -42,6 +42,8 @@ model enrollment {
   status        String? @db.VarChar
   user          user?   @relation(fields: [id_user], references: [id_user])
   course        course? @relation(fields: [id_course], references: [id_course])
+
+  @@unique([id_user, id_course], name: "enrollment_user_course_unique")
 }
 
 model event {

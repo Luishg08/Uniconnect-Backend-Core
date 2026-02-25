@@ -3,6 +3,7 @@ import { CoursesService } from './courses.service';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateCourseDto } from './dto/create-course.dto'; 
+import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
 
 @ApiTags('courses')
 @ApiBearerAuth()
@@ -23,4 +24,11 @@ export class CoursesController {
   findAll() {
     return this.coursesService.findAll();
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('get-by-student')
+  getCoursesByStudent(@GetClaim('sub') userId: number) {
+    return this.coursesService.getCoursesByStudent(userId);
+  }
+
 }
