@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
+import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @ApiTags('groups') 
 @Controller('groups')
@@ -33,6 +35,7 @@ export class GroupsController {
     return this.groupsService.findOne(id); 
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un grupo (Solo permitido al owner)' })
   @ApiQuery({ name: 'userId', description: 'ID del usuario autenticado para verificar propiedad' })
@@ -40,11 +43,12 @@ export class GroupsController {
   @ApiResponse({ status: 403, description: 'Prohibido: El usuario no es el dueño del grupo.' })
   remove(
     @Param('id', ParseIntPipe) id: number, 
-    @Query('userId', ParseIntPipe) userId: number
+    @GetClaim('sub') userId: number,
   ) {
     return this.groupsService.remove(id, userId);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar información del grupo (Solo owner)' })
   @ApiQuery({ name: 'userId', description: 'ID del usuario para verificar propiedad' })
@@ -53,7 +57,7 @@ export class GroupsController {
   @ApiResponse({ status: 404, description: 'Grupo no encontrado.' })
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Query('userId', ParseIntPipe) userId: number,
+    @GetClaim('sub') userId: number,
     @Body() updateGroupDto: UpdateGroupDto,
   ) {
     return this.groupsService.update(id, userId, updateGroupDto);
