@@ -12,6 +12,12 @@ export class UsersService {
     });
   }
 
+  async findByGoogleSub(googleSub: string) {
+    return (this.prisma.user as any).findFirst({
+      where: { google_sub: googleSub },
+    });
+  }
+
   async create(data: any) {
     return (this.prisma.user as any).create({ data });
   }

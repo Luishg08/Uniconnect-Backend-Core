@@ -4,6 +4,7 @@ import { GoogleLoginDto } from './dto/google-auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RequireAll, RequireAny } from './decorators/permissions.decorator';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { TempLoginDto } from './dto/temp-login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -15,6 +16,11 @@ export class AuthController {
     //@RequireAny('GC', 'GD') // Ejemplo de uso para requerir al menos uno de los permisos definidos en parámetros
     async googleLogin(@Body() dto: GoogleLoginDto){
         return this.authService.googleLogin(dto.access_token);
+    }
+
+    @Post('temp-login')
+    async tempLogin(@Body() dto: TempLoginDto){
+        return this.authService.tempLogin(dto.googleSub);
     }
 
 }

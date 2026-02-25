@@ -46,7 +46,8 @@ export class AuthService {
                 email: googleUser.email,
                 full_name: googleUser.name,
                 picture: googleUser.picture,
-                id_role: userRole.id_role
+                id_role: userRole.id_role,
+                google_sub: googleUser.sub,
             })
         }
 
@@ -70,5 +71,26 @@ export class AuthService {
             });
 
         return await response.json();
+    }
+
+    async tempLogin(googleSub: string) {
+        const user = await this.usersService.findByGoogleSub(googleSub);
+        if (!user) {
+            throw new UnauthorizedException({
+                success: false,
+                statusCode: 401,
+                message: 'User not found'
+            });
+        }
+        
+        const permissionsClaims = await this.permissionsService.getClaimsForRole(user.id_role);
+
+        const payload = { sub: user.id_user, permissions: permissionsClaims.map(p => p.claim) };
+                
+        const jwt = this.jwtService.sign(payload);
+        return {
+            access_token: jwt,
+            user,            
+        };
     }
 }

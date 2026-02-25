@@ -125,6 +125,7 @@ model user {
   cell_phone           String?        @db.VarChar
   picture              String?        @db.VarChar
   email                String         @db.VarChar
+  google_sub            String?        @db.VarChar
   current_semester     Int?
   id_program           Int?
   role                 role           @relation(fields: [id_role], references: [id_role])
