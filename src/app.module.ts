@@ -11,6 +11,7 @@ import { CoursesModule } from './courses/courses.module';
 import { ProgramsModule } from './programs/programs.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { GroupsModule } from './groups/groups.module';
+import { ConnectionsModule } from './connections/connections.module';
 
 @Module({
    imports: [
@@ -25,6 +26,7 @@ import { GroupsModule } from './groups/groups.module';
     ProgramsModule,
     EnrollmentsModule,
     GroupsModule,
+    ConnectionsModule
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
