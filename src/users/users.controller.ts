@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { UsersService } from './users.service';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
@@ -37,6 +37,12 @@ export class UsersController {
     @Get('profile')
     async getProfile(@GetClaim('sub') userId: number) {
         return this.usersService.getProfile(userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('profile/:id')
+    async getOtherProfile(@GetClaim('sub') userId: number, @Param('id') profileId: number) {
+        return this.usersService.getOtherProfile(userId, profileId);
     }
 
     @UseGuards(JwtAuthGuard)
