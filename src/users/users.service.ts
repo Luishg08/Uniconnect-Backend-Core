@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { ProfileUpdateDto } from './dto/google-user-info.dto';
@@ -142,6 +142,86 @@ export class UsersService {
         cell_phone: data.phone,
       },
     });
+  }
+
+  async getOtherProfile(requestingUserId: number, profileId: number) {
+
+    const requestingUser = await this.prisma.user.findUnique({
+      where: { id_user: requestingUserId },
+      select: {
+        enrollments: {
+          where: {
+            status: 'active'
+          },
+          select: {
+            id_course: true,
+          }
+        },
+        id_program: true,
+      }
+    });
+
+    const activeCourseIds = requestingUser?.enrollments.map(e => e.id_course) || [];
+
+    const otherUser = await this.prisma.user.findUnique({
+      where: { id_user: profileId },
+      select: {
+        id_user: true,
+        full_name: true,
+        email: true,
+        picture: true,
+        cell_phone: true,
+        current_semester: true,
+        role: {
+          select: {
+            name: true,
+          },
+        },
+        program: {
+          select: {
+            name: true,
+            id_program: true,
+          },
+        },
+        enrollments: {
+          select: {
+            course: {
+              select: {
+                id_course: true,
+                name: true,
+              },
+            }, 
+            status: true,
+          }
+        }
+      }
+    });
+
+    if (!otherUser) return null;
+
+    if (requestingUser?.id_program != otherUser.program?.id_program) {
+      return new ForbiddenException('No tienes permiso para ver este perfil').getResponse();
+    }
+
+    const commonCourses = otherUser.enrollments
+      .filter(e => e.course && activeCourseIds.includes(e.course.id_course))
+      .map(e => ({
+        id_course: e.course!.id_course,
+        name: e.course!.name,
+        state: e.status,
+      }));
+
+    return {
+      id: otherUser.id_user,
+      full_name: otherUser.full_name,
+      email: otherUser.email,
+      picture: otherUser.picture,
+      phone: otherUser.cell_phone,
+      program: otherUser.program?.name,
+      current_semester: otherUser.current_semester?.toString(),
+      roleName: otherUser.role.name,
+      common_courses: commonCourses,
+    };
   }
 
 }
