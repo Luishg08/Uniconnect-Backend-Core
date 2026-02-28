@@ -25,11 +25,13 @@ export class UsersController {
         @Query('search') search?: string,
         @Query('id_program') id_program?: string,
         @Query('id_course') id_course?: string,
+        @GetClaim('sub') userId?: number
     ) {
         return this.usersService.findAll({
             search,
             id_program: id_program ? Number(id_program) : undefined,
             id_course: id_course ? Number(id_course) : undefined,
+            userId,
         });
     }
 

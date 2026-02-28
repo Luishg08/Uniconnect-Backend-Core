@@ -5,7 +5,7 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 
 @Injectable()
 export class GroupsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // 1. Crear grupo con membresía automática
   async create(createGroupDto: CreateGroupDto) {
@@ -13,9 +13,21 @@ export class GroupsService {
       where: { id_course: createGroupDto.id_course },
     });
 
+    const enrollment = await this.prisma.enrollment.findFirst({
+      where: {
+        id_user: createGroupDto.owner_id,
+        id_course: createGroupDto.id_course,
+      },
+    });
+
     if (!course) {
       throw new NotFoundException(`El curso con ID ${createGroupDto.id_course} no existe.`);
     }
+
+    if (!enrollment) {
+      throw new ForbiddenException('No puedes crear un grupo para un curso al que no estás inscrito.');
+    }
+
 
     try {
       return await this.prisma.$transaction(async (tx) => {

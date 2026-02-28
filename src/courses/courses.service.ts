@@ -49,8 +49,30 @@ export class CoursesService {
         id_course: {
           notIn: enrolledCourseIds, 
         },
-      }
+      },
+      orderBy: {
+        name: 'asc',
+      },
     });
+  }
+
+  async getOwnCourses(userId: number) {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+      id_user: userId,
+      status: 'active',
+      },
+      include: {
+      course: true, 
+      }   ,
+      orderBy: {
+        course: {
+          name: 'asc',
+        },
+      },
+    });
+    
+    return enrollments.map(enrollment => enrollment.course);
   }
 
 }

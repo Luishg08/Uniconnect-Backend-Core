@@ -23,8 +23,8 @@ export class UsersService {
     return (this.prisma.user as any).create({ data });
   }
 
-  async findAll(filters: { search?: string; id_program?: number; id_course?: number } = {}) {
-    const { search, id_program, id_course } = filters;
+  async findAll(filters: { search?: string; id_program?: number; id_course?: number, userId?: number } = {}) {
+    const { search, id_program, id_course, userId } = filters;
     const where: any = { AND: [] };
 
     if (id_program) {
@@ -37,6 +37,12 @@ export class UsersService {
       });
     }
 
+    if (userId) {
+      where.AND.push({
+        id_user: { not: userId }
+      });
+    }
+    
     if (search) {
       where.AND.push({
         OR: [
@@ -197,6 +203,16 @@ export class UsersService {
       }
     });
 
+    const connectionExists = await this.prisma.connection.findFirst({
+      where: {
+        OR: [
+          { adressee_id: requestingUserId, requester_id: profileId },
+          { adressee_id: profileId, requester_id: requestingUserId },
+        ],
+      },
+    });
+
+
     if (!otherUser) return null;
 
     if (requestingUser?.id_program != otherUser.program?.id_program) {
@@ -221,6 +237,7 @@ export class UsersService {
       current_semester: otherUser.current_semester?.toString(),
       roleName: otherUser.role.name,
       common_courses: commonCourses,
+      connection_status: connectionExists ? (connectionExists.status == 'accepted' ? 'connected' : connectionExists.requester_id === requestingUserId ? 'pending_sent' : 'pending_received') : 'none',
     };
   }
 

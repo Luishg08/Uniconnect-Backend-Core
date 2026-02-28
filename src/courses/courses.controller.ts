@@ -31,4 +31,10 @@ export class CoursesController {
     return this.coursesService.getCoursesByStudent(userId);
   }
 
+   @UseGuards(JwtAuthGuard)
+   @Get('get-own')
+   getOwnCourses(@GetClaim('sub') userId: number) {
+      return this.coursesService.getOwnCourses(userId);
+  }
+
 }
