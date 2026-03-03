@@ -151,7 +151,7 @@ export class NotificationsService {
             message: `${params.fromUserName} te envió una solicitud de conexión`,
             notification_type: 'connection_request',
             related_entity_id: params.connectionId,
-            pushTitle: '📬 Nueva solicitud de conexión',
+            pushTitle: 'Nueva solicitud de conexión',
             pushBody: `${params.fromUserName} quiere conectarse contigo`,
             pushData: {
                 type: 'connection_request',
@@ -171,7 +171,7 @@ export class NotificationsService {
             message: `${params.fromUserName} envió un mensaje en "${params.groupName}"`,
             notification_type: 'new_message',
             related_entity_id: params.membershipId,
-            pushTitle: `💬 ${params.groupName}`,
+            pushTitle: `${params.groupName}`,
             pushBody: `${params.fromUserName}: Nuevo mensaje`,
             pushData: {
                 type: 'new_message',
