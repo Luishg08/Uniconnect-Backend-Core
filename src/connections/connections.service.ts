@@ -1,9 +1,13 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ConnectionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) { }
 
   async getPendingRequests(userId: number) {
     const requests = await this.prisma.connection.findMany({
@@ -70,6 +74,15 @@ export class ConnectionsService {
         },
       },
     });
+
+    // Notificar al destinatario — no bloqueamos la respuesta si falla
+    this.notificationsService
+      .notifyConnectionRequest({
+        toUserId: adresseeId,
+        fromUserName: connection.requester.full_name,
+        connectionId: connection.id_connection,
+      })
+      .catch(() => {/* silent */ });
 
     return {
       id_connection: connection.id_connection,
