@@ -2,15 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 
 @Injectable()
-export class FcmService implements OnModuleInit {
-    private readonly logger = new Logger(FcmService.name);
+export class ExpoPushService implements OnModuleInit {
+    private readonly logger = new Logger(ExpoPushService.name);
 
     onModuleInit() {
         if (admin.apps.length === 0) {
             const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
 
             if (!serviceAccountJson) {
-                this.logger.warn('FIREBASE_SERVICE_ACCOUNT no está definida. FCM desactivado.');
+                this.logger.warn('FIREBASE_SERVICE_ACCOUNT no está definida. Expo Push desactivado.');
                 return;
             }
 
@@ -27,7 +27,7 @@ export class FcmService implements OnModuleInit {
     }
 
     /**
-     * Envía una notificación push a un solo token FCM.
+     * Envía una notificación push a un solo token Expo Push.
      */
     async sendToToken(
         token: string,
@@ -54,12 +54,12 @@ export class FcmService implements OnModuleInit {
             });
         } catch (error) {
             // Token inválido o expirado — lo omitimos silenciosamente
-            this.logger.warn(`Token FCM inválido o error al enviar: ${token}`, error?.message);
+            this.logger.warn(`Token Expo Push inválido o error al enviar: ${token}`, error?.message);
         }
     }
 
     /**
-     * Envía una notificación push a múltiples tokens.
+     * Envía una notificación push a múltiples tokens Expo Push.
      */
     async sendToTokens(
         tokens: string[],

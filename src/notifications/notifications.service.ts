@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { FcmService } from './fcm.service';
+import { ExpoPushService } from './expopush.service';
 import { RegisterFcmTokenDto } from './dto/register-fcm-token.dto';
 
 @Injectable()
@@ -9,10 +9,10 @@ export class NotificationsService {
 
     constructor(
         private prisma: PrismaService,
-        private fcmService: FcmService,
+        private expoPushService: ExpoPushService,
     ) { }
 
-    // ─── FCM Token Management ─────────────────────────────────────────────────
+    // ─── Expo Push Token Management ─────────────────────────────────────────────────
 
     async registerToken(userId: number, dto: RegisterFcmTokenDto) {
         // Si el token ya existe lo reactivamos (upsert por token)
@@ -126,7 +126,7 @@ export class NotificationsService {
 
         let pushSent = false;
         if (tokenStrings.length > 0) {
-            await this.fcmService.sendToTokens(tokenStrings, pushTitle, pushBody, pushData);
+            await this.expoPushService.sendToTokens(tokenStrings, pushTitle, pushBody, pushData);
             pushSent = true;
         }
 
