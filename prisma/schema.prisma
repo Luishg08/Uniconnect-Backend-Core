@@ -57,14 +57,14 @@ model event {
 }
 
 model group {
-  id_group     Int          @id @default(autoincrement())
-  name         String?      @db.VarChar
-  description  String?      @db.VarChar
-  id_course    Int?
-  owner_id     Int?
-  course       course?      @relation(fields: [id_course], references: [id_course])
-  owner        user?        @relation(fields: [owner_id], references: [id_user])
-  memberships  membership[]
+  id_group    Int          @id @default(autoincrement())
+  name        String?      @db.VarChar
+  description String?      @db.VarChar
+  id_course   Int?
+  owner_id    Int?
+  course      course?      @relation(fields: [id_course], references: [id_course])
+  owner       user?        @relation(fields: [owner_id], references: [id_user])
+  memberships membership[]
 }
 
 model membership {
@@ -87,6 +87,19 @@ model message {
   membership    membership? @relation(fields: [id_membership], references: [id_membership])
 }
 
+model fcm_token {
+  id_token    Int      @id @default(autoincrement())
+  id_user     Int
+  token       String   @unique
+  device_type String // "ios" | "android"
+  device_name String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user user? @relation(fields: [id_user], references: [id_user])
+}
+
 model notification {
   id_notification   Int       @id @default(autoincrement())
   id_user           Int?
@@ -94,7 +107,10 @@ model notification {
   is_read           Boolean?
   created_at        DateTime? @db.Timestamptz(6)
   related_entity_id Int?
-  user              user?     @relation(fields: [id_user], references: [id_user])
+  notification_type String? // "connection_request", "new_message", …
+  push_sent         Boolean   @default(false)
+
+  user user? @relation(fields: [id_user], references: [id_user])
 }
 
 model permission {
@@ -121,21 +137,22 @@ model role {
 }
 
 model user {
-  id_role              Int
-  id_user              Int            @id @default(autoincrement())
-  full_name            String         @db.VarChar
-  cell_phone           String?        @db.VarChar
-  picture              String?        @db.Text
-  email                String         @db.VarChar
+  id_role               Int
+  id_user               Int            @id @default(autoincrement())
+  full_name             String         @db.VarChar
+  cell_phone            String?        @db.VarChar
+  picture               String?        @db.Text
+  email                 String         @db.VarChar
   google_sub            String?        @db.VarChar
-  current_semester     Int?
-  id_program           Int?
-  role                 role           @relation(fields: [id_role], references: [id_role])
-  program              program?       @relation(fields: [id_program], references: [id_program])
-  enrollments          enrollment[]
-  groups_owned         group[]
-  memberships          membership[]
-  notifications        notification[]
-  connections_requester connection[]  @relation("ConnectionRequester")
-  connections_adressee connection[]  @relation("ConnectionAdressee")
+  current_semester      Int?
+  id_program            Int?
+  role                  role           @relation(fields: [id_role], references: [id_role])
+  program               program?       @relation(fields: [id_program], references: [id_program])
+  enrollments           enrollment[]
+  groups_owned          group[]
+  memberships           membership[]
+  fcm_tokens            fcm_token[]
+  notifications         notification[]
+  connections_requester connection[]   @relation("ConnectionRequester")
+  connections_adressee  connection[]   @relation("ConnectionAdressee")
 }
