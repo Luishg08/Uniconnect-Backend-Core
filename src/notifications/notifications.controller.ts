@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
-import { RegisterFcmTokenDto } from './dto/register-fcm-token.dto';
+import { RegisterExpoPushTokenDto } from './dto/register-expo-push-token.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetClaim } from '../auth/decorators/get-token-claim.decorator';
 
@@ -30,14 +30,14 @@ export class NotificationsController {
     @ApiResponse({ status: 201, description: 'Token registrado correctamente' })
     async registerToken(
         @GetClaim('sub') userId: number,
-        @Body() dto: RegisterFcmTokenDto,
+        @Body() dto: RegisterExpoPushTokenDto,
     ) {
         return this.notificationsService.registerToken(userId, dto);
     }
 
     @Delete('expo-push-token/:token')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Desregistra un token Expo Push (logout del dispositivo)' })
+    @ApiOperation({ summary: 'Desregistra un token  Expo Push (logout del dispositivo)' })
     async removeToken(
         @GetClaim('sub') userId: number,
         @Param('token') token: string,

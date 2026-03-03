@@ -1,7 +1,7 @@
 import { IsString, IsIn, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class RegisterFcmTokenDto {
+export class RegisterExpoPushTokenDto {
     @ApiProperty({ example: 'dxxxxxxx:APA91bHPRgkFLp...', description: 'Token FCM del dispositivo' })
     @IsString()
     token: string;
