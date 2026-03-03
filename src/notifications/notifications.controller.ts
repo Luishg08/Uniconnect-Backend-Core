@@ -23,10 +23,10 @@ import { GetClaim } from '../auth/decorators/get-token-claim.decorator';
 export class NotificationsController {
     constructor(private readonly notificationsService: NotificationsService) { }
 
-    // ─── FCM Token ────────────────────────────────────────────────────────────
+    // ─── Expo Push Token ────────────────────────────────────────────────────────────
 
-    @Post('fcm-token')
-    @ApiOperation({ summary: 'Registra un token FCM para el dispositivo del usuario' })
+    @Post('expo-push-token')
+    @ApiOperation({ summary: 'Registra un token Expo Push para el dispositivo del usuario' })
     @ApiResponse({ status: 201, description: 'Token registrado correctamente' })
     async registerToken(
         @GetClaim('sub') userId: number,
@@ -35,9 +35,9 @@ export class NotificationsController {
         return this.notificationsService.registerToken(userId, dto);
     }
 
-    @Delete('fcm-token/:token')
+    @Delete('expo-push-token/:token')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Desregistra un token FCM (logout del dispositivo)' })
+    @ApiOperation({ summary: 'Desregistra un token Expo Push (logout del dispositivo)' })
     async removeToken(
         @GetClaim('sub') userId: number,
         @Param('token') token: string,

@@ -16,7 +16,7 @@ export class NotificationsService {
 
     async registerToken(userId: number, dto: RegisterFcmTokenDto) {
         // Si el token ya existe lo reactivamos (upsert por token)
-        const token = await this.prisma.fcm_token.upsert({
+        const token = await this.prisma.push_token.upsert({
             where: { token: dto.token },
             update: {
                 id_user: userId,
@@ -37,7 +37,7 @@ export class NotificationsService {
     }
 
     async removeToken(userId: number, token: string) {
-        const existing = await this.prisma.fcm_token.findFirst({
+        const existing = await this.prisma.push_token.findFirst({
             where: { token, id_user: userId },
         });
 
@@ -45,7 +45,7 @@ export class NotificationsService {
             throw new NotFoundException('Token no encontrado');
         }
 
-        await this.prisma.fcm_token.update({
+        await this.prisma.push_token.update({
             where: { id_token: existing.id_token },
             data: { is_active: false },
         });
@@ -117,7 +117,7 @@ export class NotificationsService {
         });
 
         // 2. Obtener tokens activos del usuario
-        const tokens = await this.prisma.fcm_token.findMany({
+        const tokens = await this.prisma.push_token.findMany({
             where: { id_user: userId, is_active: true },
             select: { token: true },
         });

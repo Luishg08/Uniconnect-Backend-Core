@@ -12,5 +12,5 @@ docker-compose up
 
 ## Instalación librería notificaciones 
 ```bash
-npm install firebase-admin
+npx expo install expo-notifications expo-device
 ```
