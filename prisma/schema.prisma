@@ -87,7 +87,7 @@ model message {
   membership    membership? @relation(fields: [id_membership], references: [id_membership])
 }
 
-model fcm_token {
+model push_token {
   id_token    Int      @id @default(autoincrement())
   id_user     Int
   token       String   @unique
@@ -151,7 +151,7 @@ model user {
   enrollments           enrollment[]
   groups_owned          group[]
   memberships           membership[]
-  fcm_tokens            fcm_token[]
+  push_tokens           push_token[]
   notifications         notification[]
   connections_requester connection[]   @relation("ConnectionRequester")
   connections_adressee  connection[]   @relation("ConnectionAdressee")
