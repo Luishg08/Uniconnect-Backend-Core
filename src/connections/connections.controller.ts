@@ -16,7 +16,7 @@ import { CreateConnectionDto } from './dto/create-connection';
 @Controller('connections')
 @UseGuards(JwtAuthGuard)
 export class ConnectionsController {
-  constructor(private readonly connectionsService: ConnectionsService) {}
+  constructor(private readonly connectionsService: ConnectionsService) { }
 
   @Get('pending')
   async getPendingRequests(@GetClaim('sub') userId: number) {
@@ -53,5 +53,13 @@ export class ConnectionsController {
     @GetClaim('sub') userId: number,
   ) {
     return this.connectionsService.rejectConnection(+id, userId);
+  }
+
+  @Delete(':id')
+  async deleteConnection(
+    @Param('id') id: string,
+    @GetClaim('sub') userId: number,
+  ) {
+    return this.connectionsService.deleteConnection(+id, userId);
   }
 }

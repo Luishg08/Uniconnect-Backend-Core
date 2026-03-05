@@ -11,7 +11,7 @@ export class ConnectionsService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
-  ) {}
+  ) { }
 
   // Enviar solicitud de conexión
   async sendConnectionRequest(requesterId: number, adresseeId: number) {
@@ -149,5 +149,26 @@ export class ConnectionsService {
         requester: true,
       },
     });
+  }
+
+  async deleteConnection(connectionId: number, userId: number) {
+    const connection = await this.prisma.connection.findUnique({
+      where: { id_connection: connectionId },
+    });
+
+    if (!connection) {
+      throw new NotFoundException('Conexión no encontrada');
+    }
+
+    // Solo requester o adressee pueden eliminar
+    if (connection.requester_id !== userId && connection.adressee_id !== userId) {
+      throw new BadRequestException('No tienes permiso para eliminar esta conexión');
+    }
+
+    await this.prisma.connection.delete({
+      where: { id_connection: connectionId },
+    });
+
+    return { message: 'Conexión eliminada correctamente' };
   }
 }
