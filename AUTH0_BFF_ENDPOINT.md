@@ -63,8 +63,8 @@
 ### Environment Variables Required
 ```env
 AUTH0_DOMAIN=dev-tuflbr5cbjtkf3zm.us.auth0.com
-AUTH0_CLIENT_ID=huUn12y9VgAKakJPe8t0Fp5ePGLTCYWf
-AUTH0_CLIENT_SECRET=QRISU1CVcjfCUdAvKFAzr9ZCOmAj744aA7Yl_eI28Z5_gMnE8ihBk2w3aLsjHKBS
+AUTH0_CLIENT_ID=fP8oFibh9VcVPS7Ly9HHb2vQBdFHDNO2
+AUTH0_CLIENT_SECRET=eJt9IVJyzn1qGjmrfOWkc6XCARERqrIqvbMryY_SgCVOTy0gqyV-s337hlXMlhNC
 ```
 
 ### Next Steps (TSK-3.2)

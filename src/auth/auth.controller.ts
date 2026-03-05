@@ -27,11 +27,6 @@ export class AuthController {
         return this.authService.tempLogin(dto.googleSub);
     }
 
-    /**
-     * TSK-3.1: Auth0 BFF Endpoint
-     * Receives authorization code from frontend and exchanges it for tokens
-     * Returns user profile in FEN format
-     */
     @Post('callback')
     @ApiOperation({ 
         summary: 'Auth0 Authorization Code Exchange (BFF)',
@@ -39,7 +34,7 @@ export class AuthController {
     })
     @ApiBody({ 
         type: Auth0CallbackDto,
-        description: 'Authorization code and redirect URI from Auth0 Universal Login'
+        description: 'Authorization code, redirect URI, and PKCE code_verifier from Auth0 Universal Login'
     })
     @ApiResponse({ 
         status: 200, 
@@ -81,14 +76,9 @@ export class AuthController {
         }
     })
     async auth0Callback(@Body() dto: Auth0CallbackDto) {
-        return this.authService.auth0Callback(dto.code, dto.redirect_uri);
+        return this.authService.auth0Callback(dto.code, dto.redirect_uri, dto.code_verifier);
     }
 
-    /**
-     * TSK-4.2: Auth0 Refresh Token Endpoint
-     * Exchanges refresh token for new Auth0 tokens and local JWT
-     * Returns updated user session in FEN format
-     */
     @Post('refresh')
     @ApiOperation({ 
         summary: 'Refresh Auth0 Tokens (BFF)',

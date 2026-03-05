@@ -101,19 +101,12 @@ export class AuthService {
         return this.jwtService.decode(token);
     }
 
-    /**
-     * TSK-3.1: Auth0 BFF Integration
-     * Exchange authorization code for Auth0 tokens and user profile
-     */
-    async auth0Callback(authorizationCode: string, redirectUri: string) {
+    async auth0Callback(authorizationCode: string, redirectUri: string, codeVerifier: string) {
         try {
-            // Step 1: Exchange authorization code for tokens
-            const tokenResponse = await this.exchangeAuth0Code(authorizationCode, redirectUri);
+            const tokenResponse = await this.exchangeAuth0Code(authorizationCode, redirectUri, codeVerifier);
             
-            // Step 2: Get user profile from Auth0
             const userProfile = await this.getAuth0UserProfile(tokenResponse.access_token);
             
-            // Step 3: Validate email domain (ucaldas.edu.co)
             if (!userProfile.email || !userProfile.email.endsWith('@ucaldas.edu.co')) {
                 throw new UnauthorizedException({
                     success: false,
@@ -122,7 +115,6 @@ export class AuthService {
                 });
             }
 
-            // Step 4: Find or create user in local database
             let user = await this.usersService.findByEmail(userProfile.email);
 
             if (!user) {
@@ -140,7 +132,6 @@ export class AuthService {
                 });
             }
 
-            // Step 5: Generate local JWT with permissions
             const permissionsClaims = await this.permissionsService.getClaimsForRole(user.id_role);
             const payload = { 
                 sub: user.id_user, 
@@ -150,7 +141,6 @@ export class AuthService {
             
             const jwt = this.jwtService.sign(payload);
 
-            // Step 6: Return FEN-formatted response
             return {
                 success: true,
                 statusCode: 200,
@@ -189,10 +179,7 @@ export class AuthService {
         }
     }
 
-    /**
-     * Exchange authorization code for Auth0 tokens
-     */
-    private async exchangeAuth0Code(code: string, redirectUri: string) {
+    private async exchangeAuth0Code(code: string, redirectUri: string, codeVerifier: string) {
         const auth0Domain = this.configService.get<string>('AUTH0_DOMAIN');
         const clientId = this.configService.get<string>('AUTH0_CLIENT_ID');
         const clientSecret = this.configService.get<string>('AUTH0_CLIENT_SECRET');
@@ -209,6 +196,7 @@ export class AuthService {
             client_secret: clientSecret,
             code: code,
             redirect_uri: redirectUri,
+            code_verifier: codeVerifier, // PKCE: Include code_verifier
         };
 
         try {
@@ -227,9 +215,7 @@ export class AuthService {
         }
     }
 
-    /**
-     * Get user profile from Auth0 using access token
-     */
+
     private async getAuth0UserProfile(accessToken: string) {
         const auth0Domain = this.configService.get<string>('AUTH0_DOMAIN');
         
@@ -255,10 +241,6 @@ export class AuthService {
         }
     }
 
-    /**
-     * TSK-4.2: Refresh Auth0 Token
-     * Exchanges a refresh token for new Auth0 tokens and updates local JWT
-     */
     async refreshAuth0Token(refreshToken: string, userId: number) {
         try {
             const auth0Domain = this.configService.get<string>('AUTH0_DOMAIN');
@@ -269,7 +251,6 @@ export class AuthService {
                 throw new Error('Auth0 configuration is missing in environment variables');
             }
 
-            // Step 1: Exchange refresh token for new tokens with Auth0
             const response = await firstValueFrom(
                 this.httpService.post(`https://${auth0Domain}/oauth/token`, {
                     grant_type: 'refresh_token',
@@ -285,7 +266,6 @@ export class AuthService {
 
             const tokenData = response.data;
 
-            // Step 2: Get user from local database
             const user = await this.usersService.findById(userId);
             if (!user) {
                 throw new UnauthorizedException({
@@ -295,7 +275,6 @@ export class AuthService {
                 });
             }
 
-            // Step 3: Generate new local JWT with permissions
             const permissionsClaims = await this.permissionsService.getClaimsForRole(user.id_role);
             const payload = { 
                 sub: user.id_user, 
@@ -305,7 +284,6 @@ export class AuthService {
             
             const jwt = this.jwtService.sign(payload);
 
-            // Step 4: Return FEN-formatted response
             return {
                 success: true,
                 statusCode: 200,

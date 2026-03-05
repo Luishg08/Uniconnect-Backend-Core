@@ -1,10 +1,6 @@
 import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-/**
- * DTO for Auth0 Refresh Token Request
- * TSK-4.2: Refresh Token Flow Implementation
- */
 export class RefreshTokenDto {
   @ApiProperty({
     description: 'Refresh token received from Auth0',
