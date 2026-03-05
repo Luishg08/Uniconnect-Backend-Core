@@ -10,12 +10,20 @@ import { RolesService } from '../roles/roles.service';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import * as https from 'https';
 
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    HttpModule, // Added for Auth0 BFF communication
+    HttpModule.register({
+      timeout: 15000,
+      maxRedirects: 5,
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: process.env.NODE_ENV === 'production',
+        keepAlive: true,
+      }),
+    }),
     UsersModule,
     PrismaModule,
     JwtModule.registerAsync({

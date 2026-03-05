@@ -185,10 +185,16 @@ export class AuthService {
         const clientSecret = this.configService.get<string>('AUTH0_CLIENT_SECRET');
 
         if (!auth0Domain || !clientId || !clientSecret) {
+            console.error('Auth0 configuration incomplete:', {
+                domain: auth0Domain ? '✓ configured' : '✗ missing',
+                clientId: clientId ? '✓ configured' : '✗ missing',
+                clientSecret: clientSecret ? '✓ configured' : '✗ missing',
+            });
             throw new Error('Auth0 configuration is missing in environment variables');
         }
 
         const tokenUrl = `https://${auth0Domain}/oauth/token`;
+        console.log(`Exchanging Auth0 code at: ${tokenUrl}`);
         
         const requestBody = {
             grant_type: 'authorization_code',
@@ -196,22 +202,34 @@ export class AuthService {
             client_secret: clientSecret,
             code: code,
             redirect_uri: redirectUri,
-            code_verifier: codeVerifier, // PKCE: Include code_verifier
+            code_verifier: codeVerifier,
         };
 
         try {
+            console.log('Sending request to Auth0...');
             const response = await firstValueFrom(
                 this.httpService.post(tokenUrl, requestBody, {
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    timeout: 15000,
                 })
             );
 
+            console.log('Auth0 token exchange successful');
             return response.data;
-        } catch (error) {
-            console.error('Auth0 token exchange error:', error.response?.data || error.message);
-            throw new Error('Failed to exchange authorization code for tokens');
+        } catch (error: any) {
+            console.error('Auth0 token exchange error:', {
+                message: error.message,
+                code: error.code,
+                errno: error.errno,
+                syscall: error.syscall,
+                hostname: error.hostname,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                auth0Response: error.response?.data,
+            });
+            throw new Error(`Failed to exchange authorization code for tokens: ${error.code || error.message}`);
         }
     }
 
