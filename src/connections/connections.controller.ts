@@ -3,10 +3,10 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import { ConnectionsService } from './connections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,10 +18,14 @@ import { CreateConnectionDto } from './dto/create-connection';
 export class ConnectionsController {
   constructor(private readonly connectionsService: ConnectionsService) {}
 
-
   @Get('pending')
   async getPendingRequests(@GetClaim('sub') userId: number) {
     return this.connectionsService.getPendingRequests(userId);
+  }
+
+  @Get()
+  async getMyConnections(@GetClaim('sub') userId: number) {
+    return this.connectionsService.getMyConnections(userId);
   }
 
   @Post('request')
@@ -31,23 +35,23 @@ export class ConnectionsController {
   ) {
     return this.connectionsService.sendConnectionRequest(
       requesterId,
-      dto.addressee_id,
+      dto.adressee_id,
     );
   }
 
   @Patch(':id/accept')
-  async acceptConnectionRequest(
+  async acceptConnection(
     @Param('id') id: string,
     @GetClaim('sub') userId: number,
   ) {
-    return this.connectionsService.acceptConnectionRequest(+id, userId);
+    return this.connectionsService.acceptConnection(+id, userId);
   }
 
   @Patch(':id/reject')
-  async rejectConnectionRequest(
+  async rejectConnection(
     @Param('id') id: string,
     @GetClaim('sub') userId: number,
   ) {
-    return this.connectionsService.rejectConnectionRequest(+id, userId);
+    return this.connectionsService.rejectConnection(+id, userId);
   }
 }

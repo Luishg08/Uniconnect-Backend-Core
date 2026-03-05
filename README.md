@@ -10,7 +10,3 @@ docker-compose build
 docker-compose up
 ```
 
-## Instalación librería notificaciones 
-```bash
-npx expo install expo-notifications expo-device
-```
