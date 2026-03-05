@@ -1,255 +1,160 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ExpoPushService } from './expopush.service';
 import { RegisterExpoPushTokenDto } from './dto/register-expo-push-token.dto';
+
+export const NotificationTypes = {
+  CONNECTION_REQUEST: 'connection_request',
+  CONNECTION_ACCEPTED: 'connection_accepted',
+  CONNECTION_REJECTED: 'connection_rejected',
+  NEW_MESSAGE: 'new_message',
+};
 
 @Injectable()
 export class NotificationsService {
-    private readonly logger = new Logger(NotificationsService.name);
+  constructor(private prisma: PrismaService) {}
 
-    constructor(
-        private prisma: PrismaService,
-        private expoPushService: ExpoPushService,
-    ) {}
+  // Expo Push Tokens
 
-    // ─────────────────────────────────────────────
-    // Expo Push Token Management
-    // ─────────────────────────────────────────────
+  async registerToken(userId: number, dto: RegisterExpoPushTokenDto) {
+    const existing = await this.prisma.push_token.findUnique({
+      where: { token: dto.token },
+    });
 
-    async registerToken(userId: number, dto: RegisterExpoPushTokenDto) {
-        const token = await this.prisma.push_token.upsert({
-            where: { token: dto.token },
-            update: {
-                id_user: userId,
-                device_type: dto.device_type,
-                device_name: dto.device_name,
-                is_active: true,
-                updated_at: new Date(),
-            },
-            create: {
-                id_user: userId,
-                token: dto.token,
-                device_type: dto.device_type,
-                device_name: dto.device_name,
-                is_active: true,
-            },
-        });
-
-        return {
-            message: 'Token registrado correctamente',
-            id_token: token.id_token,
-        };
+    if (existing) {
+      return this.prisma.push_token.update({
+        where: { token: dto.token },
+        data: {
+          id_user: userId,
+          device_type: dto.device_type,
+          device_name: dto.device_name,
+          is_active: true,
+        },
+      });
     }
 
-    async removeToken(userId: number, token: string) {
-        const existing = await this.prisma.push_token.findFirst({
-            where: { token, id_user: userId },
-        });
+    return this.prisma.push_token.create({
+      data: {
+        id_user: userId,
+        token: dto.token,
+        device_type: dto.device_type,
+        device_name: dto.device_name,
+      },
+    });
+  }
 
-        if (!existing) {
-            throw new NotFoundException('Token no encontrado');
-        }
+  async removeToken(userId: number, token: string) {
+    const existing = await this.prisma.push_token.findFirst({
+      where: {
+        token,
+        id_user: userId,
+      },
+    });
 
-        await this.prisma.push_token.update({
-            where: { id_token: existing.id_token },
-            data: { is_active: false },
-        });
-
-        return { message: 'Token desregistrado correctamente' };
+    if (!existing) {
+      throw new NotFoundException('Token no encontrado');
     }
 
-    // ─────────────────────────────────────────────
-    // Notification CRUD
-    // ─────────────────────────────────────────────
+    await this.prisma.push_token.delete({
+      where: { id_token: existing.id_token },
+    });
 
-    async getUserNotifications(userId: number) {
-        return this.prisma.notification.findMany({
-            where: { id_user: userId },
-            orderBy: { created_at: 'desc' },
-            take: 50,
-        });
+    return { message: 'Token eliminado correctamente' };
+  }
+
+
+  // Notifications CRUD
+
+  async getUserNotifications(userId: number) {
+    return this.prisma.notification.findMany({
+      where: { id_user: userId },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+    });
+  }
+
+  async markAsRead(notificationId: number, userId: number) {
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id_notification: notificationId,
+        id_user: userId,
+      },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notificación no encontrada');
     }
 
-    async markAsRead(notificationId: number, userId: number) {
-        const notif = await this.prisma.notification.findFirst({
-            where: {
-                id_notification: notificationId,
-                id_user: userId,
-            },
-        });
+    return this.prisma.notification.update({
+      where: { id_notification: notificationId },
+      data: { is_read: true },
+    });
+  }
 
-        if (!notif) {
-            throw new NotFoundException('Notificación no encontrada');
-        }
+  async markAllAsRead(userId: number) {
+    await this.prisma.notification.updateMany({
+      where: {
+        id_user: userId,
+        is_read: false,
+      },
+      data: { is_read: true },
+    });
 
-        return this.prisma.notification.update({
-            where: { id_notification: notificationId },
-            data: { is_read: true },
-        });
-    }
+    return { message: 'Todas las notificaciones fueron marcadas como leídas' };
+  }
 
-    async markAllAsRead(userId: number) {
-        await this.prisma.notification.updateMany({
-            where: {
-                id_user: userId,
-                is_read: false,
-            },
-            data: { is_read: true },
-        });
+  // Connection Notifications
 
-        return { message: 'Todas las notificaciones marcadas como leídas' };
-    }
+  async notifyConnectionRequest(data: {
+    toUserId: number;
+    fromUserName: string;
+    connectionId: number;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        id_user: data.toUserId,
+        message: `${data.fromUserName} te envió una solicitud de conexión`,
+        is_read: false,
+        created_at: new Date(),
+        related_entity_id: data.connectionId,
+        notification_type: NotificationTypes.CONNECTION_REQUEST,
+        push_sent: false,
+      },
+    });
+  }
 
-    // ─────────────────────────────────────────────
-    // Internal: Create notification + Send push
-    // ─────────────────────────────────────────────
+  async notifyConnectionAccepted(data: {
+    toUserId: number;
+    fromUserName: string;
+    connectionId: number;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        id_user: data.toUserId,
+        message: `${data.fromUserName} aceptó tu solicitud de conexión`,
+        is_read: false,
+        created_at: new Date(),
+        related_entity_id: data.connectionId,
+        notification_type: NotificationTypes.CONNECTION_ACCEPTED,
+        push_sent: false,
+      },
+    });
+  }
 
-    async createAndSend(params: {
-        userId: number;
-        message: string;
-        notification_type: string;
-        related_entity_id?: number;
-        pushTitle: string;
-        pushBody: string;
-        pushData?: Record<string, string>;
-    }) {
-        const {
-            userId,
-            message,
-            notification_type,
-            related_entity_id,
-            pushTitle,
-            pushBody,
-            pushData,
-        } = params;
-
-        // 1. Guardar notificación en BD
-        const notification = await this.prisma.notification.create({
-            data: {
-                id_user: userId,
-                message,
-                notification_type,
-                related_entity_id: related_entity_id ?? null,
-                is_read: false,
-                created_at: new Date(),
-                push_sent: false,
-            },
-        });
-
-        // 2. Obtener tokens activos
-        const tokens = await this.prisma.push_token.findMany({
-            where: {
-                id_user: userId,
-                is_active: true,
-            },
-            select: { token: true },
-        });
-
-        const tokenStrings = tokens.map((t) => t.token);
-
-        let pushSent = false;
-
-        if (tokenStrings.length > 0) {
-            try {
-                await this.expoPushService.sendToTokens(
-                    tokenStrings,
-                    pushTitle,
-                    pushBody,
-                    pushData,
-                );
-                pushSent = true;
-            } catch (error) {
-                this.logger.error('Error enviando push', error);
-            }
-        }
-
-        // 3. Actualizar push_sent
-        await this.prisma.notification.update({
-            where: { id_notification: notification.id_notification },
-            data: { push_sent: pushSent },
-        });
-
-        return notification;
-    }
-
-    // ─────────────────────────────────────────────
-    // Helpers por tipo de notificación
-    // ─────────────────────────────────────────────
-
-    async notifyConnectionRequest(params: {
-        toUserId: number;
-        fromUserName: string;
-        connectionId: number;
-    }) {
-        return this.createAndSend({
-            userId: params.toUserId,
-            message: `${params.fromUserName} te envió una solicitud de conexión`,
-            notification_type: 'connection_request',
-            related_entity_id: params.connectionId,
-            pushTitle: 'Nueva solicitud de conexión',
-            pushBody: `${params.fromUserName} quiere conectarse contigo`,
-            pushData: {
-                type: 'connection_request',
-                connection_id: String(params.connectionId),
-            },
-        });
-    }
-
-    async notifyConnectionAccepted(params: {
-        toUserId: number;
-        fromUserName: string;
-        connectionId: number;
-    }) {
-        return this.createAndSend({
-            userId: params.toUserId,
-            message: `${params.fromUserName} aceptó tu solicitud de conexión`,
-            notification_type: 'connection_accepted',
-            related_entity_id: params.connectionId,
-            pushTitle: 'Solicitud aceptada',
-            pushBody: `${params.fromUserName} ahora es tu conexión`,
-            pushData: {
-                type: 'connection_accepted',
-                connection_id: String(params.connectionId),
-            },
-        });
-    }
-
-    async notifyConnectionRejected(params: {
-        toUserId: number;
-        fromUserName: string;
-        connectionId: number;
-    }) {
-        return this.createAndSend({
-            userId: params.toUserId,
-            message: `${params.fromUserName} rechazó tu solicitud de conexión`,
-            notification_type: 'connection_rejected',
-            related_entity_id: params.connectionId,
-            pushTitle: 'Solicitud rechazada',
-            pushBody: `${params.fromUserName} rechazó tu solicitud`,
-            pushData: {
-                type: 'connection_rejected',
-                connection_id: String(params.connectionId),
-            },
-        });
-    }
-
-    async notifyNewMessage(params: {
-        toUserId: number;
-        fromUserName: string;
-        groupName: string;
-        membershipId: number;
-    }) {
-        return this.createAndSend({
-            userId: params.toUserId,
-            message: `${params.fromUserName} envió un mensaje en "${params.groupName}"`,
-            notification_type: 'new_message',
-            related_entity_id: params.membershipId,
-            pushTitle: params.groupName,
-            pushBody: `${params.fromUserName}: Nuevo mensaje`,
-            pushData: {
-                type: 'new_message',
-                membership_id: String(params.membershipId),
-            },
-        });
-    }
+  async notifyConnectionRejected(data: {
+    toUserId: number;
+    fromUserName: string;
+    connectionId: number;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        id_user: data.toUserId,
+        message: `${data.fromUserName} rechazó tu solicitud de conexión`,
+        is_read: false,
+        created_at: new Date(),
+        related_entity_id: data.connectionId,
+        notification_type: NotificationTypes.CONNECTION_REJECTED,
+        push_sent: false,
+      },
+    });
+  }
 }
