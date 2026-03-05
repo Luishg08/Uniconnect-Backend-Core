@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model access {
+  id_role       Int
+  id_permission Int
+  role          role       @relation(fields: [id_role], references: [id_role])
+  permission    permission @relation(fields: [id_permission], references: [id_permission])
+
+  @@id([id_role, id_permission])
+}
+
+model connection {
+  id_connection Int       @id @default(autoincrement())
+  requester_id  Int
+  adressee_id   Int
+  status        String?   @db.VarChar
+  request_at    DateTime? @db.Timestamptz(6)
+  respondend_at DateTime? @db.Timestamptz(6)
+  requester     user      @relation("ConnectionRequester", fields: [requester_id], references: [id_user])
+  adressee      user      @relation("ConnectionAdressee", fields: [adressee_id], references: [id_user])
+}
+
+model course {
+  id_course   Int          @id @default(autoincrement())
+  name        String?      @db.VarChar
+  id_program  Int?
+  program     program?     @relation(fields: [id_program], references: [id_program])
+  enrollments enrollment[]
+  groups      group[]
+}
+
+model enrollment {
+  id_enrollment Int     @id @default(autoincrement())
+  id_user       Int?
+  id_course     Int?
+  status        String? @db.VarChar
+  user          user?   @relation(fields: [id_user], references: [id_user])
+  course        course? @relation(fields: [id_course], references: [id_course])
+
+  @@unique([id_user, id_course], name: "enrollment_user_course_unique")
+}
+
+model event {
+  id_event    Int       @id @default(autoincrement())
+  title       String?   @db.VarChar
+  description String?   @db.VarChar
+  event_date  DateTime? @db.Timestamptz(6)
+  id_program  Int?
+  image       String?
+  program     program?  @relation(fields: [id_program], references: [id_program])
+}
+
+model group {
+  id_group    Int          @id @default(autoincrement())
+  name        String?      @db.VarChar
+  description String?      @db.VarChar
+  id_course   Int?
+  owner_id    Int?
+  course      course?      @relation(fields: [id_course], references: [id_course])
+  owner       user?        @relation(fields: [owner_id], references: [id_user])
+  memberships membership[]
+}
+
+model membership {
+  id_membership Int       @id @default(autoincrement())
+  id_user       Int?
+  id_group      Int?
+  is_admin      Boolean?
+  joined_at     DateTime? @db.Timestamptz(6)
+  user          user?     @relation(fields: [id_user], references: [id_user])
+  group         group?    @relation(fields: [id_group], references: [id_group])
+  messages      message[]
+}
+
+model message {
+  id_message    Int         @id @default(autoincrement())
+  id_membership Int?
+  text_content  String?     @db.VarChar
+  send_at       DateTime?   @db.Timestamptz(6)
+  attachments   String?
+  membership    membership? @relation(fields: [id_membership], references: [id_membership])
+}
+
+model push_token {
+  id_token    Int      @id @default(autoincrement())
+  id_user     Int
+  token       String   @unique
+  device_type String // "ios" | "android"
+  device_name String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user user? @relation(fields: [id_user], references: [id_user])
+}
+
+model notification {
+  id_notification   Int       @id @default(autoincrement())
+  id_user           Int?
+  message           String?   @db.VarChar
+  is_read           Boolean?
+  created_at        DateTime? @db.Timestamptz(6)
+  related_entity_id Int?
+  notification_type String? // "connection_request", "new_message", …
+  push_sent         Boolean   @default(false)
+
+  user user? @relation(fields: [id_user], references: [id_user])
+}
+
+model permission {
+  id_permission Int      @id @default(autoincrement())
+  name          String   @db.VarChar
+  description   String   @db.VarChar
+  claim         String   @db.VarChar
+  accesses      access[]
+}
+
+model program {
+  id_program Int      @id @default(autoincrement())
+  name       String?  @db.VarChar
+  courses    course[]
+  events     event[]
+  users      user[]
+}
+
+model role {
+  id_role  Int      @id @default(autoincrement())
+  name     String?  @db.VarChar
+  users    user[]
+  accesses access[]
+}
+
+model user {
+  id_role               Int
+  id_user               Int            @id @default(autoincrement())
+  full_name             String         @db.VarChar
+  cell_phone            String?        @db.VarChar
+  picture               String?        @db.Text
+  email                 String         @db.VarChar
+  google_sub            String?        @db.VarChar
+  current_semester      Int?
+  id_program            Int?
+  role                  role           @relation(fields: [id_role], references: [id_role])
+  program               program?       @relation(fields: [id_program], references: [id_program])
+  enrollments           enrollment[]
+  groups_owned          group[]
+  memberships           membership[]
+  push_tokens           push_token[]
+  notifications         notification[]
+  connections_requester connection[]   @relation("ConnectionRequester")
+  connections_adressee  connection[]   @relation("ConnectionAdressee")
+}
