@@ -13,6 +13,12 @@ export class UsersService {
     });
   }
 
+  async findById(id: number) {
+    return (this.prisma.user as any).findUnique({
+      where: { id_user: id },
+    });
+  }
+
   async findByGoogleSub(googleSub: string) {
     return (this.prisma.user as any).findFirst({
       where: { google_sub: googleSub },
