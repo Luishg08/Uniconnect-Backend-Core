@@ -48,7 +48,7 @@ export class UsersService {
         id_user: { not: userId }
       });
     }
-    
+
     if (search) {
       where.AND.push({
         OR: [
@@ -94,15 +94,15 @@ export class UsersService {
           },
         },
         program: {
-        select: {
-          name: true,
-          courses: {
-            select: {
-              id_course: true,
+          select: {
+            name: true,
+            courses: {
+              select: {
+                id_course: true,
+              },
             },
           },
         },
-      },
         enrollments: {
           select: {
             status: true,
@@ -202,7 +202,7 @@ export class UsersService {
                 id_course: true,
                 name: true,
               },
-            }, 
+            },
             status: true,
           }
         }
@@ -242,8 +242,15 @@ export class UsersService {
       program: otherUser.program?.name,
       current_semester: otherUser.current_semester?.toString(),
       roleName: otherUser.role.name,
+      connection_id: connectionExists?.id_connection,
       common_courses: commonCourses,
-      connection_status: connectionExists ? (connectionExists.status == 'accepted' ? 'connected' : connectionExists.requester_id === requestingUserId ? 'pending_sent' : 'pending_received') : 'none',
+      connection_status: connectionExists && connectionExists.status !== 'rejected'
+        ? (connectionExists.status === 'accepted'
+          ? 'accepted'
+          : connectionExists.requester_id === requestingUserId
+            ? 'pending_sent'
+            : 'pending_received')
+        : 'none',
     };
   }
 

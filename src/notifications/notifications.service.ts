@@ -1,109 +1,160 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { ExpoPushTokenDto } from './dto/expo-push-token.dto';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegisterExpoPushTokenDto } from './dto/register-expo-push-token.dto';
+
+export const NotificationTypes = {
+  CONNECTION_REQUEST: 'connection_request',
+  CONNECTION_ACCEPTED: 'connection_accepted',
+  CONNECTION_REJECTED: 'connection_rejected',
+  NEW_MESSAGE: 'new_message',
+};
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
-  async findAllForUser(userId: number) {
-    const notifications = await (this.prisma.notification as any).findMany({
-      where: { id_user: userId },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id_notification: true,
-        message: true,
-        is_read: true,
-        created_at: true,
+  // Expo Push Tokens
+
+  async registerToken(userId: number, dto: RegisterExpoPushTokenDto) {
+    const existing = await this.prisma.push_token.findUnique({
+      where: { token: dto.token },
+    });
+
+    if (existing) {
+      return this.prisma.push_token.update({
+        where: { token: dto.token },
+        data: {
+          id_user: userId,
+          device_type: dto.device_type,
+          device_name: dto.device_name,
+          is_active: true,
+        },
+      });
+    }
+
+    return this.prisma.push_token.create({
+      data: {
+        id_user: userId,
+        token: dto.token,
+        device_type: dto.device_type,
+        device_name: dto.device_name,
+      },
+    });
+  }
+
+  async removeToken(userId: number, token: string) {
+    const existing = await this.prisma.push_token.findFirst({
+      where: {
+        token,
+        id_user: userId,
       },
     });
 
-    return notifications.map((notification: any) => ({
-      id_notification: notification.id_notification,
-      message: notification.message ?? '',
-      is_read: Boolean(notification.is_read),
-      created_at: (notification.created_at ?? new Date(0)).toISOString(),
-      notification_type: null,
-    }));
+    if (!existing) {
+      throw new NotFoundException('Token no encontrado');
+    }
+
+    await this.prisma.push_token.delete({
+      where: { id_token: existing.id_token },
+    });
+
+    return { message: 'Token eliminado correctamente' };
   }
 
-  async markAsRead(userId: number, notificationId: number) {
-    const result = await (this.prisma.notification as any).updateMany({
+
+  // Notifications CRUD
+
+  async getUserNotifications(userId: number) {
+    return this.prisma.notification.findMany({
+      where: { id_user: userId },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+    });
+  }
+
+  async markAsRead(notificationId: number, userId: number) {
+    const notification = await this.prisma.notification.findFirst({
       where: {
         id_notification: notificationId,
         id_user: userId,
       },
-      data: {
-        is_read: true,
-      },
     });
 
-    if (!result.count) {
-      throw new NotFoundException({
-        statusCode: 404,
-        message: 'Notification not found',
-        error: 'Not Found',
-      });
+    if (!notification) {
+      throw new NotFoundException('Notificación no encontrada');
     }
 
-    return { success: true };
+    return this.prisma.notification.update({
+      where: { id_notification: notificationId },
+      data: { is_read: true },
+    });
   }
 
   async markAllAsRead(userId: number) {
-    const result = await (this.prisma.notification as any).updateMany({
-      where: { id_user: userId },
+    await this.prisma.notification.updateMany({
+      where: {
+        id_user: userId,
+        is_read: false,
+      },
       data: { is_read: true },
     });
 
-    return {
-      success: true,
-      updated: result.count,
-    };
+    return { message: 'Todas las notificaciones fueron marcadas como leídas' };
   }
 
-  async saveExpoPushToken(userId: number, dto: ExpoPushTokenDto) {
-    await this.ensurePushTokenTable();
+  // Connection Notifications
 
-    await this.prisma.$executeRaw`
-      INSERT INTO user_push_token (id_user, token, platform)
-      VALUES (${userId}, ${dto.token}, ${dto.platform ?? null})
-      ON CONFLICT (id_user, token)
-      DO UPDATE SET platform = EXCLUDED.platform, updated_at = NOW()
-    `;
-
-    return {
-      success: true,
-      message: 'Expo push token saved',
-    };
+  async notifyConnectionRequest(data: {
+    toUserId: number;
+    fromUserName: string;
+    connectionId: number;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        id_user: data.toUserId,
+        message: `${data.fromUserName} te envió una solicitud de conexión`,
+        is_read: false,
+        created_at: new Date(),
+        related_entity_id: data.connectionId,
+        notification_type: NotificationTypes.CONNECTION_REQUEST,
+        push_sent: false,
+      },
+    });
   }
 
-  async deleteExpoPushToken(userId: number, token: string) {
-    await this.ensurePushTokenTable();
-
-    const deleted = await this.prisma.$executeRaw`
-      DELETE FROM user_push_token
-      WHERE id_user = ${userId} AND token = ${token}
-    `;
-
-    return {
-      success: true,
-      deleted,
-    };
+  async notifyConnectionAccepted(data: {
+    toUserId: number;
+    fromUserName: string;
+    connectionId: number;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        id_user: data.toUserId,
+        message: `${data.fromUserName} aceptó tu solicitud de conexión`,
+        is_read: false,
+        created_at: new Date(),
+        related_entity_id: data.connectionId,
+        notification_type: NotificationTypes.CONNECTION_ACCEPTED,
+        push_sent: false,
+      },
+    });
   }
 
-  private async ensurePushTokenTable() {
-    const query = `
-      CREATE TABLE IF NOT EXISTS user_push_token (
-        id_push_token SERIAL PRIMARY KEY,
-        id_user INTEGER NOT NULL REFERENCES "user"(id_user) ON DELETE CASCADE,
-        token VARCHAR(255) NOT NULL,
-        platform VARCHAR(50),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (id_user, token)
-      )
-    `;
-
-    await this.prisma.$executeRawUnsafe(query);
+  async notifyConnectionRejected(data: {
+    toUserId: number;
+    fromUserName: string;
+    connectionId: number;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        id_user: data.toUserId,
+        message: `${data.fromUserName} rechazó tu solicitud de conexión`,
+        is_read: false,
+        created_at: new Date(),
+        related_entity_id: data.connectionId,
+        notification_type: NotificationTypes.CONNECTION_REJECTED,
+        push_sent: false,
+      },
+    });
   }
 }
