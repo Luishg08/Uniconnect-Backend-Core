@@ -24,6 +24,14 @@ export class ConnectionsController {
     return this.connectionsService.getPendingRequests(userId);
   }
 
+  @Get('status/:userId')
+  async getConnectionStatus(
+    @GetClaim('sub') currentUserId: number,
+    @Param('userId') userId: string,
+  ) {
+    return this.connectionsService.getConnectionStatus(currentUserId, +userId);
+  }
+
   @Post('request')
   async sendConnectionRequest(
     @GetClaim('sub') requesterId: number,

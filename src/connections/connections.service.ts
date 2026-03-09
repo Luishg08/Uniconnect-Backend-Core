@@ -50,6 +50,23 @@ export class ConnectionsService {
     });
 
     if (existingConnection) {
+      if (existingConnection.status === 'rejected') {
+        // Permitir reenvío: actualizar la conexión rechazada a pendiente
+        const updated = await this.prisma.connection.update({
+          where: { id_connection: existingConnection.id_connection },
+          data: {
+            requester_id: requesterId,
+            adressee_id: adresseeId,
+            status: 'pending',
+            request_at: new Date(),
+            respondend_at: null,
+          },
+        });
+        return {
+          id_connection: updated.id_connection,
+          message: 'Solicitud de conexión reenviada',
+        };
+      }
       throw new BadRequestException('Ya existe una conexión o solicitud pendiente');
     }
 
@@ -74,6 +91,28 @@ export class ConnectionsService {
     return {
       id_connection: connection.id_connection,
       message: 'Solicitud de conexión enviada',
+    };
+  }
+
+  async getConnectionStatus(currentUserId: number, otherUserId: number) {
+    const connection = await this.prisma.connection.findFirst({
+      where: {
+        OR: [
+          { requester_id: currentUserId, adressee_id: otherUserId },
+          { requester_id: otherUserId, adressee_id: currentUserId },
+        ],
+      },
+    });
+
+    if (!connection) {
+      return { status: 'none', id_connection: null };
+    }
+
+    return {
+      id_connection: connection.id_connection,
+      status: connection.status,
+      // Indica si el usuario actual fue quien envió la solicitud
+      is_requester: connection.requester_id === currentUserId,
     };
   }
 
