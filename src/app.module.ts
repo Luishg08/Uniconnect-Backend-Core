@@ -28,7 +28,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     EnrollmentsModule,
     GroupsModule,
     ConnectionsModule,
-    NotificationsModule,
+    NotificationsModule
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
