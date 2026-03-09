@@ -31,41 +31,50 @@ export class UsersService {
 
   async findAll(filters: { search?: string; id_program?: number; id_course?: number, userId?: number } = {}) {
     const { search, id_program, id_course, userId } = filters;
+
+    // Obtener las materias inscritas del usuario autenticado
+    const parsedUserId = userId ? Number(userId) : null;
+    let userCourseIds: number[] = [];
+    if (parsedUserId) {
+      const userEnrollments = await (this.prisma.enrollment as any).findMany({
+        where: { id_user: parsedUserId },
+        select: { id_course: true },
+      });
+      userCourseIds = userEnrollments
+        .map((e: any) => e.id_course)
+        .filter((id: any) => id !== null && id !== undefined)
+        .map((id: any) => Number(id));
+    }
+
+    // Si el usuario no tiene materias inscritas no puede tener companeros en comun
+    if (userCourseIds.length === 0 && !id_course) {
+      return [];
+    }
+
     const where: any = { AND: [] };
+
+    // Excluir al usuario autenticado
+    if (parsedUserId) {
+      where.AND.push({ id_user: { not: parsedUserId } });
+    }
+
+    // Solo mostrar usuarios que compartan materias con el usuario autenticado
+    const courseFilter = id_course ? [Number(id_course)] : userCourseIds;
+    where.AND.push({
+      enrollments: { some: { id_course: { in: courseFilter } } },
+    });
 
     if (id_program) {
       where.AND.push({ id_program: Number(id_program) });
     }
 
-    if (id_course) {
-      where.AND.push({
-        enrollments: { some: { id_course: Number(id_course) } }
-      });
-    }
-
-    if (userId) {
-      where.AND.push({
-        id_user: { not: userId }
-      });
-    }
-
     if (search) {
       where.AND.push({
-        OR: [
-          { full_name: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-          {
-            enrollments: {
-              some: {
-                course: { name: { contains: search, mode: 'insensitive' } },
-              },
-            },
-          },
-        ],
+        full_name: { contains: search, mode: 'insensitive' },
       });
     }
 
-    return (this.prisma.user as any).findMany({
+    const users = await (this.prisma.user as any).findMany({
       where: where.AND.length > 0 ? where : {},
       include: {
         program: true,
@@ -75,6 +84,20 @@ export class UsersService {
           },
         },
       },
+    });
+
+    // Agregar common_courses a cada resultado (solo materias que comparte con el autenticado)
+    return users.map((user: any) => {
+      const common_courses = user.enrollments
+        .filter((e: any) => e.id_course !== null && userCourseIds.includes(Number(e.id_course)))
+        .map((e: any) => ({
+          id_course: e.course?.id_course,
+          name: e.course?.name,
+        }));
+      return {
+        ...user,
+        common_courses,
+      };
     });
   }
 
