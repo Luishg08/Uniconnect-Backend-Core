@@ -13,6 +13,8 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { GroupsModule } from './groups/groups.module';
 import { ConnectionsModule } from './connections/connections.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MembershipsModule } from './memberships/memberships.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
    imports: [
@@ -29,6 +31,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     GroupsModule,
     ConnectionsModule,
     NotificationsModule,
+    MembershipsModule,
+    MessagesModule
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
