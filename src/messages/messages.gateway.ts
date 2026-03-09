@@ -126,6 +126,15 @@ export class MessagesGateway
       const message = await this.messagesService.create(createMessageDto);
       const sendAt = message.send_at ?? new Date();
 
+      // Validar que exista el usuario
+      if (!message.membership?.user) {
+        this.logger.error(
+          `Usuario faltante en mensaje ${message.id_message}`,
+          { membership: message.membership },
+        );
+        return { error: 'Error: usuario faltante en la base de datos' };
+      }
+
       // Formatear mensaje para envio a clientes
       const messageEvent: MessageEventDto = {
         id_message: message.id_message,
@@ -134,13 +143,13 @@ export class MessagesGateway
         send_at: sendAt,
         attachments: message.attachments || '',
         user: {
-          id_user: message.membership?.user?.id_user!,
-          full_name: message.membership?.user?.full_name!,
-          picture: message.membership?.user?.picture ?? undefined,
+          id_user: message.membership.user.id_user,
+          full_name: message.membership.user.full_name!,
+          picture: message.membership.user.picture ?? undefined,
         },
         group: {
-          id_group: message.membership?.group?.id_group!,
-          name: message.membership?.group?.name!,
+          id_group: message.membership.group?.id_group ?? id_group,
+          name: message.membership.group?.name || 'Grupo',
         },
       };
 

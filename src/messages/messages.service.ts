@@ -79,6 +79,7 @@ export class MessagesService {
         membership: {
           include: {
             user: true,
+            group: true,
           },
         },
       },
@@ -149,6 +150,7 @@ export class MessagesService {
         membership: {
           include: {
             user: true,
+            group: true,
           },
         },
       },
