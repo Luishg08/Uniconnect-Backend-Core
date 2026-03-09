@@ -27,21 +27,49 @@ export class MessagesController {
   }
 
   /**
-   * GET /messages
-   * Obtener todos los mensajes
+   * POST /messages/direct/:userId/with/:otherUserId
+   * Iniciar o obtener un chat 1:1 con otro usuario
+   * IMPORTANTE: Esta ruta DEBE ir AQUÍ, antes de @Get() dinámicos
    */
-  @Get()
-  findAll() {
-    return this.messagesService.findAll();
+  @Post('direct/:userId/with/:otherUserId')
+  getOrCreateDirectChat(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('otherUserId', ParseIntPipe) otherUserId: number,
+  ) {
+    return this.messagesService.getOrCreateDirectChat(userId, otherUserId);
   }
 
   /**
-   * GET /messages/:id
-   * Obtener un mensaje por su ID
+   * GET /messages/direct/:userId
+   * Obtener todos los chats 1:1 de un usuario
+   * IMPORTANTE: Esta ruta más específica va ANTES de @Get(':id')
    */
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.messagesService.findOne(id);
+  @Get('direct/:userId')
+  getUserDirectChats(@Param('userId', ParseIntPipe) userId: number) {
+    return this.messagesService.getUserDirectChats(userId);
+  }
+
+  /**
+   * GET /messages/group/:id_group/recent
+   * Obtener mensajes recientes de un grupo (para cargar en UI)
+   * IMPORTANTE: Esta ruta más específica va ANTES de @Get('group/:id_group')
+   */
+  @Get('group/:id_group/recent')
+  findRecentByGroup(
+    @Param('id_group', ParseIntPipe) id_group: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    return this.messagesService.findRecentByGroup(id_group, limit);
+  }
+
+  /**
+   * GET /messages/group/:id_group/count
+   * Contar mensajes totales en un grupo
+   * IMPORTANTE: Esta ruta más específica va ANTES de @Get('group/:id_group')
+   */
+  @Get('group/:id_group/count')
+  countByGroup(@Param('id_group', ParseIntPipe) id_group: number) {
+    return this.messagesService.countByGroup(id_group);
   }
 
   /**
@@ -54,18 +82,6 @@ export class MessagesController {
   }
 
   /**
-   * GET /messages/group/:id_group/recent
-   * Obtener mensajes recientes de un grupo (para cargar en UI)
-   */
-  @Get('group/:id_group/recent')
-  findRecentByGroup(
-    @Param('id_group', ParseIntPipe) id_group: number,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
-  ) {
-    return this.messagesService.findRecentByGroup(id_group, limit);
-  }
-
-  /**
    * GET /messages/membership/:id_membership
    * Obtener todos los mensajes de una membresía (usuario en grupo)
    */
@@ -75,12 +91,22 @@ export class MessagesController {
   }
 
   /**
-   * GET /messages/group/:id_group/count
-   * Contar mensajes totales en un grupo
+   * GET /messages
+   * Obtener todos los mensajes
    */
-  @Get('group/:id_group/count')
-  countByGroup(@Param('id_group', ParseIntPipe) id_group: number) {
-    return this.messagesService.countByGroup(id_group);
+  @Get()
+  findAll() {
+    return this.messagesService.findAll();
+  }
+
+  /**
+   * GET /messages/:id
+   * Obtener un mensaje por su ID
+   * IMPORTANTE: Esta ruta GENÉRICA va al FINAL
+   */
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.messagesService.findOne(id);
   }
 
   /**
