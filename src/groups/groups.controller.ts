@@ -27,6 +27,34 @@ export class GroupsController {
     return this.groupsService.findAllByUser(userId);
   }
 
+  @Get('created-by/:userId')
+  @ApiOperation({ summary: 'Listar grupos creados por el usuario (es owner)' })
+  @ApiResponse({ status: 200, description: 'Lista de grupos creados por el usuario.' })
+  findGroupsCreated(@Param('userId', ParseIntPipe) userId: number) {
+    return this.groupsService.findGroupsCreatedByUser(userId);
+  }
+
+  @Get('member-of/:userId')
+  @ApiOperation({ summary: 'Listar grupos donde el usuario es miembro' })
+  @ApiResponse({ status: 200, description: 'Lista de grupos donde el usuario participa.' })
+  findGroupsMember(@Param('userId', ParseIntPipe) userId: number) {
+    return this.groupsService.findGroupsMemberOf(userId);
+  }
+
+  @Get('discover/:userId')
+  @ApiOperation({ summary: 'Descubrir grupos disponibles según materias inscritas' })
+  @ApiResponse({ status: 200, description: 'Lista de grupos disponibles para unirse.' })
+  discoverGroups(@Param('userId', ParseIntPipe) userId: number) {
+    return this.groupsService.discoverGroups(userId);
+  }
+
+  @Get('by-course/:courseId')
+  @ApiOperation({ summary: 'Buscar grupos por materia específica' })
+  @ApiResponse({ status: 200, description: 'Lista de grupos de la materia.' })
+  findByCourse(@Param('courseId', ParseIntPipe) courseId: number) {
+    return this.groupsService.findGroupsByCourse(courseId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de un grupo específico' })
   @ApiResponse({ status: 200, description: 'Datos del grupo encontrados.' })

@@ -2,32 +2,37 @@ import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenE
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
+import { GroupBusinessValidator } from './validators/group-business.validator';
 
 @Injectable()
 export class GroupsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private groupValidator: GroupBusinessValidator,
+  ) { }
 
-  // 1. Crear grupo con membresía automática
+  // 1. Crear grupo con validaciones y membresía automática
   async create(createGroupDto: CreateGroupDto) {
+    // Validar que el curso existe
     const course = await this.prisma.course.findUnique({
       where: { id_course: createGroupDto.id_course },
-    });
-
-    const enrollment = await this.prisma.enrollment.findFirst({
-      where: {
-        id_user: createGroupDto.owner_id,
-        id_course: createGroupDto.id_course,
-      },
     });
 
     if (!course) {
       throw new NotFoundException(`El curso con ID ${createGroupDto.id_course} no existe.`);
     }
 
-    if (!enrollment) {
-      throw new ForbiddenException('No puedes crear un grupo para un curso al que no estás inscrito.');
-    }
+    // Validar que el usuario está inscrito en el curso
+    await this.groupValidator.validateCourseEnrollment(
+      createGroupDto.owner_id,
+      createGroupDto.id_course,
+    );
 
+    // Validar límite de 3 grupos por materia
+    await this.groupValidator.validateMaxGroupsPerCourse(
+      createGroupDto.owner_id,
+      createGroupDto.id_course,
+    );
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -141,6 +146,122 @@ export class GroupsService {
     return this.prisma.group.update({
       where: { id_group: id },
       data: updateGroupDto,
+    });
+  }
+
+  /**
+   * Obtener grupos creados por el usuario (es owner)
+   */
+  async findGroupsCreatedByUser(userId: number) {
+    return this.prisma.group.findMany({
+      where: {
+        owner_id: userId,
+      },
+      include: {
+        course: {
+          select: { name: true, program: { select: { name: true } } },
+        },
+        _count: {
+          select: { memberships: true },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+
+  /**
+   * Obtener grupos donde el usuario es miembro (pero no necesariamente owner)
+   */
+  async findGroupsMemberOf(userId: number) {
+    return this.prisma.group.findMany({
+      where: {
+        memberships: {
+          some: { id_user: userId },
+        },
+      },
+      include: {
+        course: {
+          select: { name: true, program: { select: { name: true } } },
+        },
+        owner: {
+          select: { id_user: true, full_name: true, picture: true },
+        },
+        _count: {
+          select: { memberships: true },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+
+  /**
+   * Descubrir grupos disponibles según las materias inscritas del usuario
+   */
+  async discoverGroups(userId: number) {
+    // Obtener cursos en los que el usuario está inscrito
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+        id_user: userId,
+        status: 'active',
+      },
+      select: { id_course: true },
+    });
+
+    const courseIds = enrollments.map((e) => e.id_course);
+
+    // Obtener grupos de esos cursos donde el usuario NO es miembro
+    const groups = await this.prisma.group.findMany({
+      where: {
+        id_course: { in: courseIds },
+        memberships: {
+          none: { id_user: userId },
+        },
+      },
+      include: {
+        course: {
+          select: { name: true, program: { select: { name: true } } },
+        },
+        owner: {
+          select: { id_user: true, full_name: true, picture: true },
+        },
+        _count: {
+          select: { memberships: true },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return groups;
+  }
+
+  /**
+   * Buscar grupos por curso específico
+   */
+  async findGroupsByCourse(courseId: number, userId?: number) {
+    return this.prisma.group.findMany({
+      where: {
+        id_course: courseId,
+      },
+      include: {
+        course: {
+          select: { name: true },
+        },
+        owner: {
+          select: { id_user: true, full_name: true, picture: true },
+        },
+        _count: {
+          select: { memberships: true },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
     });
   }
 }

@@ -15,6 +15,7 @@ import { ConnectionsModule } from './connections/connections.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { MessagesModule } from './messages/messages.module';
+import { GroupInvitationsModule } from './group-invitations/group-invitations.module';
 
 @Module({
    imports: [
@@ -32,7 +33,8 @@ import { MessagesModule } from './messages/messages.module';
     ConnectionsModule,
     NotificationsModule,
     MembershipsModule,
-    MessagesModule
+    MessagesModule,
+    GroupInvitationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
