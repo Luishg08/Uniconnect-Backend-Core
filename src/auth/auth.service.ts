@@ -153,6 +153,8 @@ export class AuthService {
                         full_name: user.full_name,
                         email: user.email,
                         picture: user.picture,
+                        id_program: user.id_program ?? null,
+                        needsOnboarding: user.id_program === null || user.id_program === undefined,
                     },
                     auth0_tokens: {
                         access_token: tokenResponse.access_token,
@@ -314,6 +316,8 @@ export class AuthService {
                         full_name: user.full_name,
                         email: user.email,
                         picture: user.picture,
+                        id_program: user.id_program ?? null,
+                        needsOnboarding: user.id_program === null || user.id_program === undefined,
                     },
                     auth0_tokens: {
                         access_token: tokenData.access_token,

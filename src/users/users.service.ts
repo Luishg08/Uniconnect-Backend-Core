@@ -1,7 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { ProfileUpdateDto } from './dto/google-user-info.dto';
+import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
 
 @Injectable()
 export class UsersService {
@@ -111,6 +112,7 @@ export class UsersService {
         picture: true,
         cell_phone: true,
         current_semester: true,
+        id_program: true,
         role: {
           select: {
             name: true,
@@ -158,6 +160,8 @@ export class UsersService {
         program: user.program?.name,
         progress,
         current_semester: user.current_semester?.toString(),
+        id_program: user.id_program ?? null,
+        needsOnboarding: user.id_program === null || user.id_program === undefined,
         roleName: user.role.name,
         courses: user.enrollments?.map(e => ({
           id_course: e.course!.id_course,
@@ -175,6 +179,29 @@ export class UsersService {
         current_semester: parseInt(data.current_semester || '0') || 0,
         picture: data.image,
         cell_phone: data.phone,
+      },
+    });
+  }
+
+  async completeOnboarding(userId: number, dto: CompleteOnboardingDto) {
+    const user = await (this.prisma.user as any).findUnique({
+      where: { id_user: userId },
+      select: { id_program: true },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.id_program !== null) throw new ConflictException('Onboarding already completed');
+
+    const programExists = await (this.prisma.program as any).findUnique({
+      where: { id_program: dto.id_program },
+    });
+    if (!programExists) throw new NotFoundException('Program not found');
+
+    return (this.prisma.user as any).update({
+      where: { id_user: userId },
+      data: {
+        id_program: dto.id_program,
+        current_semester: dto.current_semester,
       },
     });
   }

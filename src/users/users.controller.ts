@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { UsersService } from './users.service';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
 import { ProfileUpdateDto } from './dto/google-user-info.dto';
+import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()  
@@ -51,6 +52,16 @@ export class UsersController {
     @Patch('profile')
     async updateProfile(@GetClaim('sub') userId: number, @Body() dto: ProfileUpdateDto) {
         return this.usersService.updateProfile(userId, dto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post('onboarding')
+    @ApiOperation({
+        summary: 'HU-Onboarding: Completar datos académicos iniciales',
+        description: 'Se llama una sola vez tras el primer login con Auth0. Asigna el programa y semestre actual del usuario. Devuelve 409 si ya fue completado.',
+    })
+    async completeOnboarding(@GetClaim('sub') userId: number, @Body() dto: CompleteOnboardingDto) {
+        return this.usersService.completeOnboarding(userId, dto);
     }
 
 }
