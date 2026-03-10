@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -22,6 +23,16 @@ import { GroupInvitationsModule } from './group-invitations/group-invitations.mo
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env', 
+    }),
+    EventEmitterModule.forRoot({
+      // Configuración global de eventos
+      wildcard: false,
+      delimiter: '.',
+      newListener: false,
+      removeListener: false,
+      maxListeners: 10,
+      verboseMemoryLeak: false,
+      ignoreErrors: false,
     }),
     AuthModule,
     UsersModule,

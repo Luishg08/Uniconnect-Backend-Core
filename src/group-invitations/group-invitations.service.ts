@@ -4,16 +4,19 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupInvitationDto } from './dto/create-group-invitation.dto';
 import { RespondGroupInvitationDto } from './dto/respond-group-invitation.dto';
 import { GroupBusinessValidator } from '../groups/validators/group-business.validator';
+import { MESSAGE_EVENTS } from '../messages/events/message.events';
 
 @Injectable()
 export class GroupInvitationsService {
   constructor(
     private prisma: PrismaService,
     private groupValidator: GroupBusinessValidator,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -68,6 +71,17 @@ export class GroupInvitationsService {
           },
         },
       },
+    });
+
+    // 6. Emitir evento de invitación enviada
+    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_SENT, {
+      id_invitation: invitation.id_invitation,
+      id_group: invitation.id_group,
+      group_name: invitation.group.name || 'Grupo',
+      inviter_id: invitation.inviter_id,
+      inviter_name: invitation.inviter.full_name || 'Usuario',
+      invitee_id: invitation.invitee_id,
+      invited_at: invitation.invited_at,
     });
 
     return {
@@ -153,13 +167,34 @@ export class GroupInvitationsService {
 
     // 5. Si se aceptó, crear la membresía
     if (respondDto.status === 'accepted') {
-      await this.prisma.membership.create({
+      const membership = await this.prisma.membership.create({
         data: {
           id_user: userId,
           id_group: invitation.id_group,
           is_admin: false,
           joined_at: new Date(),
         },
+        include: {
+          user: { select: { full_name: true } },
+        },
+      });
+
+      // Emitir evento de invitación aceptada
+      this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_ACCEPTED, {
+        id_invitation: invitationId,
+        id_group: invitation.id_group,
+        group_name: invitation.group?.name || 'Grupo',
+        invitee_id: userId,
+        invitee_name: membership.user?.full_name || 'Usuario',
+        accepted_at: new Date(),
+      });
+
+      // Emitir evento de usuario unido al grupo
+      this.eventEmitter.emit(MESSAGE_EVENTS.USER_JOINED_GROUP, {
+        id_user: userId,
+        id_group: invitation.id_group,
+        full_name: membership.user?.full_name || 'Usuario',
+        joined_at: new Date(),
       });
 
       return {
@@ -167,6 +202,14 @@ export class GroupInvitationsService {
         invitation: updatedInvitation,
       };
     }
+
+    // Emitir evento de invitación rechazada
+    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_REJECTED, {
+      id_invitation: invitationId,
+      id_group: invitation.id_group,
+      invitee_id: userId,
+      rejected_at: new Date(),
+    });
 
     return {
       message: 'Invitación rechazada',
