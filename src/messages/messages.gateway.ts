@@ -178,26 +178,34 @@ export class MessagesGateway
   ) {
     try {
       const id_group = client.data.id_group as number;
+      const id_user = client.data.id_user as number;
 
-      if (!id_group) {
+      if (!id_group || !id_user) {
         return { error: 'Usuario no autenticado' };
       }
 
-      // Actualizar en BD
-      const updatedMessage = await this.messagesService.update(data.id_message, {
-        text_content: data.text_content,
-      });
+      // Editar usando el repository que valida ownership
+      const updatedMessage = await this.messagesService.editMessage(
+        data.id_message,
+        id_user,
+        data.text_content,
+      );
+
+      if (!updatedMessage) {
+        return { error: 'No tienes permiso para editar este mensaje' };
+      }
 
       const roomName = `group-${id_group}`;
       this.server.to(roomName).emit('message:edited', {
         id_message: updatedMessage.id_message,
         text_content: updatedMessage.text_content,
-        send_at: updatedMessage.send_at,
+        is_edited: updatedMessage.is_edited,
+        edited_at: updatedMessage.edited_at,
       });
 
       this.logger.log(`Message ${data.id_message} edited in group ${id_group}`);
 
-      return { success: true };
+      return { success: true, message: updatedMessage };
     } catch (error) {
       this.logger.error('Error editing message:', error);
       return { error: 'Error al editar mensaje' };
@@ -216,13 +224,14 @@ export class MessagesGateway
   ) {
     try {
       const id_group = client.data.id_group as number;
+      const id_user = client.data.id_user as number;
 
-      if (!id_group) {
+      if (!id_group || !id_user) {
         return { error: 'Usuario no autenticado' };
       }
 
-      // Eliminar de BD
-      await this.messagesService.remove(data.id_message);
+      // Eliminar validando permisos (autor o admin)
+      await this.messagesService.remove(data.id_message, id_user);
 
       const roomName = `group-${id_group}`;
       this.server.to(roomName).emit('message:deleted', {
@@ -234,7 +243,7 @@ export class MessagesGateway
       return { success: true };
     } catch (error) {
       this.logger.error('Error deleting message:', error);
-      return { error: 'Error al eliminar mensaje' };
+      return { error: error.message || 'Error al eliminar mensaje' };
     }
   }
 
@@ -297,6 +306,125 @@ export class MessagesGateway
   }
 
   /**
+   * Obtener historial de mensajes con paginación
+   * Evento: 'messages:history'
+   * Datos: { cursor?, limit? }
+   */
+  @SubscribeMessage('messages:history')
+  async handleMessagesHistory(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { cursor?: number; limit?: number } = {},
+  ) {
+    try {
+      const id_group = client.data.id_group as number;
+
+      if (!id_group) {
+        return { error: 'Usuario no autenticado' };
+      }
+
+      const messages = await this.messagesService.findByGroup(id_group);
+      const limit = data.limit || 50;
+      const cursor = data.cursor || 0;
+
+      // Paginación simple
+      const paginatedMessages = messages.slice(cursor, cursor + limit);
+      const hasMore = messages.length > cursor + limit;
+
+      return {
+        success: true,
+        messages: paginatedMessages,
+        cursor: cursor + limit,
+        hasMore,
+      };
+    } catch (error) {
+      this.logger.error('Error loading message history:', error);
+      return { error: 'Error al cargar historial' };
+    }
+  }
+
+  /**
+   * Salir de un grupo (room)
+   * Evento: 'room:leave'
+   */
+  @SubscribeMessage('room:leave')
+  handleLeaveRoom(@ConnectedSocket() client: Socket) {
+    const id_group = client.data.id_group as number;
+
+    if (id_group) {
+      const roomName = `group-${id_group}`;
+      client.leave(roomName);
+      this.sessionManager.leaveGroupRoom(id_group, client.id);
+
+      this.logger.log(`User ${client.data.id_user} left group ${id_group}`);
+
+      return { success: true, message: 'Left room' };
+    }
+
+    return { error: 'No estás en ningún grupo' };
+  }
+
+  /**
+   * Buscar mensajes en el grupo
+   * Evento: 'messages:search'
+   * Datos: { searchTerm }
+   */
+  @SubscribeMessage('messages:search')
+  async handleSearchMessages(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { searchTerm: string },
+  ) {
+    try {
+      const id_group = client.data.id_group as number;
+
+      if (!id_group) {
+        return { error: 'Usuario no autenticado' };
+      }
+
+      if (!data.searchTerm || data.searchTerm.trim().length < 2) {
+        return { error: 'El término de búsqueda debe tener al menos 2 caracteres' };
+      }
+
+      const messages = await this.messagesService.searchInGroup(
+        id_group,
+        data.searchTerm.trim(),
+      );
+
+      return {
+        success: true,
+        messages,
+        count: messages.length,
+      };
+    } catch (error) {
+      this.logger.error('Error searching messages:', error);
+      return { error: 'Error al buscar mensajes' };
+    }
+  }
+
+  /**
+   * Obtener estadísticas de sesiones
+   * Evento: 'session:stats'
+   */
+  @SubscribeMessage('session:stats')
+  handleGetStats(@ConnectedSocket() client: Socket) {
+    const stats = this.sessionManager.getStats();
+    const id_group = client.data.id_group as number;
+
+    if (id_group) {
+      const groupSockets = this.sessionManager.getGroupSockets(id_group);
+      return {
+        success: true,
+        stats,
+        currentGroup: {
+          id_group,
+          connectedUsers: groupSockets.length,
+        },
+      };
+    }
+
+    return { success: true, stats };
+  }
+
+  /**
    * Método para emitir a un grupo específico desde otras partes del código
    */
   sendMessageToGroup(id_group: number, event: string, data: any) {
@@ -305,9 +433,16 @@ export class MessagesGateway
   }
 
   /**
-   * Obtener usuarios conectados
+   * Obtener usuarios conectados en un grupo
    */
-  getConnectedUsers(): Map<number, string[]> {
-    return this.userSockets;
+  getGroupConnectedUsers(id_group: number): string[] {
+    return this.sessionManager.getGroupSockets(id_group);
+  }
+
+  /**
+   * Verificar si un usuario está online
+   */
+  isUserOnline(userId: number): boolean {
+    return this.sessionManager.isUserOnline(userId);
   }
 }
