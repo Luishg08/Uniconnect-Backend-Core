@@ -158,4 +158,55 @@ export class MessageRepository {
       where: { membership: { id_group } },
     });
   }
+
+  /**
+   * Marcar mensaje como editado (Fase 1 enhancement)
+   */
+  async markAsEdited(id_message: number, newContent: string, userId: number) {
+    const msg = await this.prisma.message.findUnique({
+      where: { id_message },
+      include: { membership: { select: { id_user: true } } },
+    });
+
+    if (!msg || msg.membership?.id_user !== userId) return null;
+
+    return this.prisma.message.update({
+      where: { id_message },
+      data: {
+        text_content: newContent,
+        is_edited: true,
+        edited_at: new Date(),
+      },
+      include: this.membershipInclude,
+    });
+  }
+
+  /**
+   * Buscar mensajes por texto en un grupo
+   */
+  async searchInGroup(id_group: number, searchTerm: string) {
+    return this.prisma.message.findMany({
+      where: {
+        membership: { id_group },
+        text_content: {
+          contains: searchTerm,
+          mode: 'insensitive',
+        },
+      },
+      include: this.membershipInclude,
+      orderBy: { send_at: 'desc' },
+      take: 20,
+    });
+  }
+
+  /**
+   * Obtener último mensaje de un grupo
+   */
+  async getLastMessageByGroup(id_group: number) {
+    return this.prisma.message.findFirst({
+      where: { membership: { id_group } },
+      orderBy: { send_at: 'desc' },
+      include: this.membershipInclude,
+    });
+  }
 }

@@ -3,151 +3,104 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { MessageRepository } from './message.repository';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 
 @Injectable()
 export class MessagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private messageRepository: MessageRepository) {}
 
   /**
    * Crear un nuevo mensaje
    */
   async create(createMessageDto: CreateMessageDto) {
-    return this.prisma.message.create({
-      data: {
-        id_membership: createMessageDto.id_membership,
-        text_content: createMessageDto.text_content,
-        attachments: createMessageDto.attachments,
-        send_at: createMessageDto.send_at || new Date(),
-      },
-      include: {
-        membership: {
-          include: {
-            user: true,
-            group: true,
-          },
-        },
-      },
-    });
+    return this.messageRepository.create(createMessageDto);
   }
 
   /**
    * Obtener todos los mensajes
    */
   async findAll() {
-    return this.prisma.message.findMany({
-      include: {
-        membership: {
-          include: {
-            user: true,
-            group: true,
-          },
-        },
-      },
-      orderBy: {
-        send_at: 'asc',
-      },
-    });
+    return this.messageRepository.findAll();
   }
 
   /**
    * Obtener un mensaje por su ID
    */
   async findOne(id: number) {
-    return this.prisma.message.findUnique({
-      where: { id_message: id },
-      include: {
-        membership: {
-          include: {
-            user: true,
-            group: true,
-          },
-        },
-      },
-    });
+    return this.messageRepository.findById(id);
   }
 
   /**
    * Obtener todos los mensajes de un grupo
    */
   async findByGroup(id_group: number) {
-    return this.prisma.message.findMany({
-      where: {
-        membership: {
-          id_group,
-        },
-      },
-      include: {
-        membership: {
-          include: {
-            user: true,
-            group: true,
-          },
-        },
-      },
-      orderBy: {
-        send_at: 'asc',
-      },
-    });
+    return this.messageRepository.findByGroup(id_group);
   }
 
   /**
    * Obtener todos los mensajes de una membresía (usuario en grupo)
    */
   async findByMembership(id_membership: number) {
-    return this.prisma.message.findMany({
-      where: { id_membership },
-      include: {
-        membership: {
-          include: {
-            user: true,
-            group: true,
-          },
-        },
-      },
-      orderBy: {
-        send_at: 'asc',
-      },
-    });
+    return this.messageRepository.findByMembership(id_membership);
   }
 
   /**
    * Actualizar un mensaje (editar contenido)
    */
-  async update(id: number, updateMessageDto: UpdateMessageDto) {
-    return this.prisma.message.update({
-      where: { id_message: id },
-      data: updateMessageDto,
-      include: {
-        membership: {
-          include: {
-            user: true,
-            group: true,
-          },
-        },
-      },
-    });
+  async update(id: number, userId: number, updateMessageDto: UpdateMessageDto) {
+    return this.messageRepository.updateIfOwner(id, userId, updateMessageDto);
+  }
+
+  /**
+   * Marcar mensaje como editado
+   */
+  async editMessage(id: number, userId: number, newContent: string) {
+    return this.messageRepository.markAsEdited(id, newContent, userId);
   }
 
   /**
    * Eliminar un mensaje
    */
-  async remove(id: number) {
-    return this.prisma.message.delete({
-      where: { id_message: id },
-    });
+  async remove(id: number, userId: number) {
+    const removed = await this.messageRepository.removeIfOwnerOrAdmin(id, userId);
+    if (!removed) {
+      throw new ForbiddenException(
+        'No tienes permiso para eliminar este mensaje',
+      );
+    }
+    return { message: 'Mensaje eliminado exitosamente' };
   }
 
   /**
    * Obtener mensajes recientes de un grupo (últimos N mensajes)
    */
   async findRecentByGroup(id_group: number, limit: number = 50) {
-    return this.prisma.message.findMany({
-      where: {
-        membership: {
+    return this.messageRepository.findRecentByGroup(id_group, limit);
+  }
+
+  /**
+   * Buscar mensajes en un grupo por texto
+   */
+  async searchInGroup(id_group: number, searchTerm: string) {
+    return this.messageRepository.searchInGroup(id_group, searchTerm);
+  }
+
+  /**
+   * Contar mensajes de un grupo
+   */
+  async countByGroup(id_group: number): Promise<number> {
+    return this.messageRepository.countByGroup(id_group);
+  }
+
+  /**
+   * Obtener último mensaje de un grupo
+   */
+  async getLastMessage(id_group: number) {
+    return this.messageRepository.getLastMessageByGroup(id_group);
+  }
+}
           id_group,
         },
       },

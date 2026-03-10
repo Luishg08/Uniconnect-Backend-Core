@@ -5,6 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { GroupBusinessValidator } from './validators/group-business.validator';
 import { GroupOwnershipGuard } from './guards/group-ownership.guard';
 import { AdminOnlyGuard } from './guards/admin-only.guard';
+import { GroupRepository } from './repositories/group.repository';
 
 @Module({
   imports: [PrismaModule],
@@ -14,7 +15,8 @@ import { AdminOnlyGuard } from './guards/admin-only.guard';
     GroupBusinessValidator,
     GroupOwnershipGuard,
     AdminOnlyGuard,
+    GroupRepository,
   ],
-  exports: [GroupsService, GroupBusinessValidator],
+  exports: [GroupsService, GroupBusinessValidator, GroupRepository],
 })
 export class GroupsModule {}

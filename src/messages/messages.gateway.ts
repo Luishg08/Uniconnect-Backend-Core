@@ -12,6 +12,7 @@ import { MessagesService } from './messages.service';
 import { SendMessageDto, MessageEventDto } from './dto/websocket-message.dto';
 import { Logger } from '@nestjs/common';
 import { SocketData } from './types/SocketData';
+import { ChatSessionManager } from './managers/chat-session.manager';
 
 @WebSocketGateway({
   cors: {
@@ -24,13 +25,16 @@ export class MessagesGateway
 {
   server: Server;
   private readonly logger = new Logger(MessagesGateway.name);
-  private userSockets: Map<number, string[]> = new Map(); // id_user -> socket ids
+  private readonly sessionManager = ChatSessionManager.getInstance();
 
   constructor(private messagesService: MessagesService) {}
 
   afterInit(server: Server) {
     this.server = server;
     this.logger.log('WebSocket initialized');
+    this.logger.log(
+      `ChatSessionManager stats: ${JSON.stringify(this.sessionManager.getStats())}`,
+    );
   }
 
   /**
@@ -46,17 +50,7 @@ export class MessagesGateway
    */
   async handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
-
-    // Buscar y eliminar el socket del mapa de usuarios
-    for (const [userId, socketIds] of this.userSockets.entries()) {
-      const index = socketIds.indexOf(client.id);
-      if (index > -1) {
-        socketIds.splice(index, 1);
-        if (socketIds.length === 0) {
-          this.userSockets.delete(userId);
-        }
-      }
-    }
+    this.sessionManager.removeUserSession(client.id);
   }
 
   /**
@@ -78,15 +72,19 @@ export class MessagesGateway
     // Guardar datos en el socket
     Object.assign(client.data, socketData);
 
-    // Agregar socket a mapa de usuarios
-    if (!this.userSockets.has(data.id_user)) {
-      this.userSockets.set(data.id_user, []);
-    }
-    this.userSockets.get(data.id_user)!.push(client.id);
+    // Agregar sesión al manager (Singleton)
+    this.sessionManager.addUserSession({
+      socketId: client.id,
+      userId: data.id_user,
+      membershipId: data.id_membership,
+      groupId: data.id_group,
+      connectedAt: new Date(),
+    });
 
-    // Unirse a sala del grupo
+    // Unirse a sala del grupo usando el manager
     const roomName = `group-${data.id_group}`;
     client.join(roomName);
+    this.sessionManager.joinGroupRoom(data.id_group, client.id);
 
     this.logger.log(
       `User ${data.id_user} joined group ${data.id_group} (room: ${roomName})`,
