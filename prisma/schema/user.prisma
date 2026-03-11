@@ -12,11 +12,13 @@ model user {
   connections_requester                              connection[]       @relation("ConnectionRequester")
   enrollments                                        enrollment[]
   groups_owned                                       group[]
-  group_invitation_group_invitation_invitee_idTouser group_invitation[] @relation("group_invitation_invitee_idTouser")
-  group_invitation_group_invitation_inviter_idTouser group_invitation[] @relation("group_invitation_inviter_idTouser")
+  
   memberships                                        membership[]
   notifications                                      notification[]
   push_token                                         push_token[]
   program                                            program?           @relation(fields: [id_program], references: [id_program])
   role                                               role               @relation(fields: [id_role], references: [id_role])
+
+  invitations_sent      group_invitation[]   @relation("GroupInviter")
+  invitations_received  group_invitation[]   @relation("GroupInvitee")
 }

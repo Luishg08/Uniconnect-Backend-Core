@@ -77,9 +77,9 @@ export class GroupInvitationsService {
     this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_SENT, {
       id_invitation: invitation.id_invitation,
       id_group: invitation.id_group,
-      group_name: invitation.group.name || 'Grupo',
+      group_name: invitation.group?.name || 'Grupo',
       inviter_id: invitation.inviter_id,
-      inviter_name: invitation.inviter.full_name || 'Usuario',
+      inviter_name: invitation.inviter?.full_name || 'Usuario',
       invitee_id: invitation.invitee_id,
       invited_at: invitation.invited_at,
     });

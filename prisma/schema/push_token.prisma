@@ -1,0 +1,11 @@
+model push_token {
+  id_token    Int      @id @default(autoincrement())
+  id_user     Int
+  token       String   @unique
+  device_type String
+  device_name String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime
+  user        user     @relation(fields: [id_user], references: [id_user])
+}
