@@ -27,6 +27,11 @@ export class NotificationsController {
     return this.notificationsService.findAllForUser(userId);
   }
 
+  @Get('unread-count')
+  async getUnreadCount(@GetClaim('sub') userId: number) {
+    return this.notificationsService.getUnreadCount(userId);
+  }
+
   @Patch(':id/read')
   async markAsRead(
     @GetClaim('sub') userId: number,

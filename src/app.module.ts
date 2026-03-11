@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -15,12 +16,23 @@ import { ConnectionsModule } from './connections/connections.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { MessagesModule } from './messages/messages.module';
+import { GroupInvitationsModule } from './group-invitations/group-invitations.module';
 
 @Module({
    imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env', 
+    }),
+    EventEmitterModule.forRoot({
+      // Configuración global de eventos
+      wildcard: false,
+      delimiter: '.',
+      newListener: false,
+      removeListener: false,
+      maxListeners: 10,
+      verboseMemoryLeak: false,
+      ignoreErrors: false,
     }),
     AuthModule,
     UsersModule,
@@ -32,7 +44,8 @@ import { MessagesModule } from './messages/messages.module';
     ConnectionsModule,
     NotificationsModule,
     MembershipsModule,
-    MessagesModule
+    MessagesModule,
+    GroupInvitationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],
