@@ -1,9 +1,15 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { MESSAGE_EVENTS } from '../messages/events/message.events';
+import type { ConnectionRequestSentPayload } from '../messages/events/message.events';
 
 @Injectable()
 export class ConnectionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async getPendingRequests(userId: number) {
     const requests = await this.prisma.connection.findMany({
@@ -87,6 +93,17 @@ export class ConnectionsService {
         },
       },
     });
+
+    // Emitir evento para crear notificación automática
+    const payload: ConnectionRequestSentPayload = {
+      id_connection: connection.id_connection,
+      requester_id: requesterId,
+      requester_name: connection.requester?.full_name || '',
+      requester_picture: connection.requester?.picture ?? undefined,
+      addressee_id: adresseeId,
+      sent_at: new Date(),
+    };
+    this.eventEmitter.emit(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT, payload);
 
     return {
       id_connection: connection.id_connection,

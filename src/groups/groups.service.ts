@@ -211,7 +211,7 @@ export class GroupsService {
       select: { id_course: true },
     });
 
-    const courseIds = enrollments.map((e) => e.id_course);
+    const courseIds = enrollments.map((e) => e.id_course).filter((id): id is number => id !== null);
 
     // Obtener grupos de esos cursos donde el usuario NO es miembro
     const groups = await this.prisma.group.findMany({

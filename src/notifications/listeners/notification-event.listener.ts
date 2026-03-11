@@ -7,6 +7,7 @@ import type {
   GroupInvitationSentPayload,
   GroupInvitationAcceptedPayload,
   UserJoinedGroupPayload,
+  ConnectionRequestSentPayload,
 } from '../../messages/events/message.events';
 
 /**
@@ -183,6 +184,36 @@ export class NotificationEventListener {
       }
     } catch (error) {
       this.logger.error('Error handling USER_JOINED_GROUP event:', error);
+    }
+  }
+
+  /**
+   * Escuchar evento de solicitud de conexión enviada
+   * Crear notificación para el destinatario
+   */
+  @OnEvent(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT)
+  async handleConnectionRequestSent(payload: ConnectionRequestSentPayload) {
+    try {
+      this.logger.log(
+        `Handling CONNECTION_REQUEST_SENT event for user ${payload.addressee_id}`,
+      );
+
+      await this.prisma.notification.create({
+        data: {
+          id_user: payload.addressee_id,
+          message: `${payload.requester_name} te ha enviado una solicitud de conexión`,
+          is_read: false,
+          created_at: new Date(),
+          related_entity_id: payload.id_connection,
+          notification_type: 'connection_request',
+        },
+      });
+
+      this.logger.log(
+        `Created notification for connection request ${payload.id_connection}`,
+      );
+    } catch (error) {
+      this.logger.error('Error handling CONNECTION_REQUEST_SENT event:', error);
     }
   }
 }

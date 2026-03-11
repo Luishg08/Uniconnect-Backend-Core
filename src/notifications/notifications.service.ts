@@ -15,6 +15,8 @@ export class NotificationsService {
         message: true,
         is_read: true,
         created_at: true,
+        notification_type: true,
+        related_entity_id: true,
       },
     });
 
@@ -23,8 +25,16 @@ export class NotificationsService {
       message: notification.message ?? '',
       is_read: Boolean(notification.is_read),
       created_at: (notification.created_at ?? new Date(0)).toISOString(),
-      notification_type: null,
+      notification_type: notification.notification_type ?? null,
+      related_entity_id: notification.related_entity_id ?? null,
     }));
+  }
+
+  async getUnreadCount(userId: number) {
+    const count = await (this.prisma.notification as any).count({
+      where: { id_user: userId, is_read: false },
+    });
+    return { count };
   }
 
   async markAsRead(userId: number, notificationId: number) {

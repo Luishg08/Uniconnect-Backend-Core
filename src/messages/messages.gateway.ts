@@ -13,6 +13,7 @@ import { SendMessageDto, MessageEventDto } from './dto/websocket-message.dto';
 import { Logger } from '@nestjs/common';
 import { SocketData } from './types/SocketData';
 import { ChatSessionManager } from './managers/chat-session.manager';
+import { PrismaService } from '../prisma/prisma.service';
 
 @WebSocketGateway({
   cors: {
@@ -27,7 +28,10 @@ export class MessagesGateway
   private readonly logger = new Logger(MessagesGateway.name);
   private readonly sessionManager = ChatSessionManager.getInstance();
 
-  constructor(private messagesService: MessagesService) {}
+  constructor(
+    private messagesService: MessagesService,
+    private prisma: PrismaService,
+  ) {}
 
   afterInit(server: Server) {
     this.server = server;
@@ -56,69 +60,114 @@ export class MessagesGateway
   /**
    * Cliente se autentica y se une a un grupo
    * Evento: 'authenticate'
-   * Datos: { id_user, id_membership, id_group }
+   * Datos: { id_user, id_group } - id_membership es opcional, se busca automáticamente
    */
   @SubscribeMessage('authenticate')
-  handleAuthenticate(
+  async handleAuthenticate(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { id_user: number; id_membership: number; id_group: number },
+    @MessageBody() data: { id_user: number; id_membership?: number; id_group: number },
   ) {
-    const socketData: SocketData = {
-      id_user: data.id_user,
-      id_membership: data.id_membership,
-      id_group: data.id_group,
-    };
+    try {
+      let membershipId = data.id_membership;
 
-    // Guardar datos en el socket
-    Object.assign(client.data, socketData);
+      // Si no envían id_membership o es 0, buscarlo automáticamente
+      if (!membershipId || membershipId === 0) {
+        const membership = await this.prisma.membership.findFirst({
+          where: {
+            id_user: data.id_user,
+            id_group: data.id_group,
+          },
+        });
 
-    // Agregar sesión al manager (Singleton)
-    this.sessionManager.addUserSession({
-      socketId: client.id,
-      userId: data.id_user,
-      membershipId: data.id_membership,
-      groupId: data.id_group,
-      connectedAt: new Date(),
-    });
+        if (!membership) {
+          this.logger.error(
+            `No membership found for user ${data.id_user} in group ${data.id_group}`,
+          );
+          return {
+            success: false,
+            error: 'No eres miembro de este grupo',
+          };
+        }
 
-    // Unirse a sala del grupo usando el manager
-    const roomName = `group-${data.id_group}`;
-    client.join(roomName);
-    this.sessionManager.joinGroupRoom(data.id_group, client.id);
+        membershipId = membership.id_membership;
+        this.logger.log(
+          `Auto-detected membership ID: ${membershipId} for user ${data.id_user} in group ${data.id_group}`,
+        );
+      }
 
-    this.logger.log(
-      `User ${data.id_user} joined group ${data.id_group} (room: ${roomName})`,
-    );
+      const socketData: SocketData = {
+        id_user: data.id_user,
+        id_membership: membershipId,
+        id_group: data.id_group,
+      };
 
-    // Notificar al grupo que un usuario se conectó
-    this.server.to(roomName).emit('user:connected', {
-      id_user: data.id_user,
-      id_membership: data.id_membership,
-      message: 'Usuario conectado',
-    });
+      // Guardar datos en el socket
+      Object.assign(client.data, socketData);
 
-    return { success: true, message: 'Authenticated' };
+      // Agregar sesión al manager (Singleton)
+      this.sessionManager.addUserSession({
+        socketId: client.id,
+        userId: data.id_user,
+        membershipId: membershipId,
+        groupId: data.id_group,
+        connectedAt: new Date(),
+      });
+
+      // Unirse a sala del grupo usando el manager
+      const roomName = `group-${data.id_group}`;
+      client.join(roomName);
+      this.sessionManager.joinGroupRoom(data.id_group, client.id);
+
+      this.logger.log(
+        `User ${data.id_user} joined group ${data.id_group} with membership ${membershipId} (room: ${roomName})`,
+      );
+
+      // Notificar al grupo que un usuario se conectó
+      this.server.to(roomName).emit('user:connected', {
+        id_user: data.id_user,
+        id_membership: membershipId,
+        message: 'Usuario conectado',
+      });
+
+      return { success: true, message: 'Authenticated', id_membership: membershipId };
+    } catch (error) {
+      this.logger.error('Error authenticating:', error);
+      return {
+        success: false,
+        error: 'Error al autenticar',
+      };
+    }
   }
 
   /**
    * Recibir nuevo mensaje en tiempo real
    * Evento: 'message:send'
-   * Datos: { id_membership, text_content, attachments? }
+   * Datos: { text_content, attachments? }
+   * El id_membership se toma de la sesión autenticada
    */
   @SubscribeMessage('message:send')
   async handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() createMessageDto: SendMessageDto,
+    @MessageBody() data: { text_content: string; attachments?: string },
   ) {
     try {
       const id_group = client.data.id_group as number;
+      const id_membership = client.data.id_membership as number;
+      const id_user = client.data.id_user as number;
       
       this.logger.debug(`handleMessage client.data:`, client.data);
       
-      if (!id_group) {
-        this.logger.warn(`Usuario no autenticado, id_group: ${id_group}`);
-        return { error: 'Usuario no autenticado' };
+      if (!id_group || !id_membership || !id_user) {
+        this.logger.warn(`Usuario no autenticado completamente`, client.data);
+        return { error: 'Usuario no autenticado. Llama a authenticate primero.' };
       }
+
+      // Crear DTO con el id_membership correcto de la sesión
+      const createMessageDto = {
+        id_membership: id_membership,
+        text_content: data.text_content,
+        attachments: data.attachments || '',
+      };
 
       // Guardar mensaje en BD
       const message = await this.messagesService.create(createMessageDto);

@@ -94,3 +94,12 @@ export interface GroupInvitationAcceptedPayload {
   invitee_name: string;
   accepted_at: Date;
 }
+
+export interface ConnectionRequestSentPayload {
+  id_connection: number;
+  requester_id: number;
+  requester_name: string;
+  requester_picture?: string;
+  addressee_id: number;
+  sent_at: Date;
+}
