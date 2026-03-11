@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, Patch, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -46,6 +46,27 @@ export class GroupsController {
   @ApiResponse({ status: 200, description: 'Lista de grupos disponibles para unirse.' })
   discoverGroups(@Param('userId', ParseIntPipe) userId: number) {
     return this.groupsService.discoverGroups(userId);
+  }
+
+  @Post('direct-message/:userId2')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Obtener o crear un chat privado entre dos usuarios' })
+  @ApiResponse({ status: 200, description: 'Chat privado encontrado o creado exitosamente.' })
+  @ApiResponse({ status: 400, description: 'No puedes chatear contigo mismo.' })
+  @ApiResponse({ status: 404, description: 'Uno o ambos usuarios no existen.' })
+  findOrCreateDirectMessage(
+    @GetClaim('sub') userId1: number,
+    @Param('userId2', ParseIntPipe) userId2: number,
+  ) {
+    return this.groupsService.findOrCreateDirectMessage(userId1, userId2);
+  }
+
+  @Get('direct-messages')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Listar todos los chats privados del usuario autenticado' })
+  @ApiResponse({ status: 200, description: 'Lista de chats privados con último mensaje.' })
+  findUserDirectMessages(@GetClaim('sub') userId: number) {
+    return this.groupsService.findUserDirectMessages(userId);
   }
 
   @Get('by-course/:courseId')
