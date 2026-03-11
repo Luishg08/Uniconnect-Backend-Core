@@ -67,7 +67,29 @@ export class ConnectionsService {
             request_at: new Date(),
             respondend_at: null,
           },
+          include: {
+            requester: {
+              select: { id_user: true, full_name: true, picture: true },
+            },
+          },
         });
+
+        // Emitir evento para crear notificación (solicitud reenviada = nuevo evento)
+        const payload: ConnectionRequestSentPayload = {
+          id_connection: updated.id_connection,
+          requester_id: requesterId,
+          requester_name: updated.requester?.full_name || '',
+          requester_picture: updated.requester?.picture ?? undefined,
+          addressee_id: adresseeId,
+          sent_at: new Date(),
+        };
+        console.log('🔔 [ConnectionsService] EMITTING CONNECTION_REQUEST_SENT (RESEND):', {
+          event: MESSAGE_EVENTS.CONNECTION_REQUEST_SENT,
+          payload,
+          timestamp: new Date().toISOString(),
+        });
+        this.eventEmitter.emit(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT, payload);
+
         return {
           id_connection: updated.id_connection,
           message: 'Solicitud de conexión reenviada',
@@ -103,6 +125,11 @@ export class ConnectionsService {
       addressee_id: adresseeId,
       sent_at: new Date(),
     };
+    console.log('🔔 [ConnectionsService] EMITTING CONNECTION_REQUEST_SENT (NEW):', {
+      event: MESSAGE_EVENTS.CONNECTION_REQUEST_SENT,
+      payload,
+      timestamp: new Date().toISOString(),
+    });
     this.eventEmitter.emit(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT, payload);
 
     return {

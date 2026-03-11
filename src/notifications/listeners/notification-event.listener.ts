@@ -193,12 +193,17 @@ export class NotificationEventListener {
    */
   @OnEvent(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT)
   async handleConnectionRequestSent(payload: ConnectionRequestSentPayload) {
+    console.log('👂 [NotificationEventListener] RECEIVED CONNECTION_REQUEST_SENT:', {
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+
     try {
       this.logger.log(
         `Handling CONNECTION_REQUEST_SENT event for user ${payload.addressee_id}`,
       );
 
-      await this.prisma.notification.create({
+      const notification = await this.prisma.notification.create({
         data: {
           id_user: payload.addressee_id,
           message: `${payload.requester_name} te ha enviado una solicitud de conexión`,
@@ -209,11 +214,27 @@ export class NotificationEventListener {
         },
       });
 
+      console.log('✅ [NotificationEventListener] NOTIFICATION CREATED:', {
+        id_notification: notification.id_notification,
+        id_user: notification.id_user,
+        related_entity_id: notification.related_entity_id,
+        is_read: notification.is_read,
+        notification_type: notification.notification_type,
+      });
+
       this.logger.log(
         `Created notification for connection request ${payload.id_connection}`,
       );
     } catch (error) {
+      console.error('❌ [NotificationEventListener] NOTIFICATION CREATE FAILED:', {
+        error,
+        payload,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       this.logger.error('Error handling CONNECTION_REQUEST_SENT event:', error);
+      // Re-lanzar para que sea visible
+      throw error;
     }
   }
 }
