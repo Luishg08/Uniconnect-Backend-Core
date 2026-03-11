@@ -1,0 +1,11 @@
+model notification {
+  id_notification   Int       @id @default(autoincrement())
+  id_user           Int?
+  message           String?   @db.VarChar
+  is_read           Boolean?
+  created_at        DateTime? @db.Timestamptz(6)
+  related_entity_id Int?
+  notification_type String?
+  push_sent         Boolean   @default(false)
+  user              user?     @relation(fields: [id_user], references: [id_user])
+}

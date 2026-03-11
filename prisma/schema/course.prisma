@@ -1,0 +1,8 @@
+model course {
+  id_course   Int          @id @default(autoincrement())
+  name        String?      @db.VarChar
+  id_program  Int?
+  program     program?     @relation(fields: [id_program], references: [id_program])
+  enrollments enrollment[]
+  groups      group[]
+}

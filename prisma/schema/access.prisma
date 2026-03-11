@@ -1,0 +1,8 @@
+model access {
+  id_role       Int
+  id_permission Int
+  permission    permission @relation(fields: [id_permission], references: [id_permission])
+  role          role       @relation(fields: [id_role], references: [id_role])
+
+  @@id([id_role, id_permission])
+}

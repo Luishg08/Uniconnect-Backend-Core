@@ -1,0 +1,10 @@
+model membership {
+  id_membership Int       @id @default(autoincrement())
+  id_user       Int?
+  id_group      Int?
+  is_admin      Boolean?
+  joined_at     DateTime? @db.Timestamptz(6)
+  group         group?    @relation(fields: [id_group], references: [id_group])
+  user          user?     @relation(fields: [id_user], references: [id_user])
+  messages      message[]
+}

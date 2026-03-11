@@ -1,0 +1,13 @@
+model message {
+  id_message    Int         @id @default(autoincrement())
+  id_membership Int?
+  text_content  String?     @db.VarChar
+  send_at       DateTime    @default(now()) @db.Timestamptz(6)
+  attachments   String?
+  edited_at     DateTime?   @db.Timestamptz(6)
+  is_edited     Boolean     @default(false)
+  membership    membership? @relation(fields: [id_membership], references: [id_membership])
+
+  file          file?
+}
+

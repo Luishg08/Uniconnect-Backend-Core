@@ -1,0 +1,9 @@
+model event {
+  id_event    Int       @id @default(autoincrement())
+  title       String?   @db.VarChar
+  description String?   @db.VarChar
+  event_date  DateTime? @db.Timestamptz(6)
+  id_program  Int?
+  image       String?
+  program     program?  @relation(fields: [id_program], references: [id_program])
+}

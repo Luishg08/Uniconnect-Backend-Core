@@ -1,0 +1,10 @@
+model connection {
+  id_connection Int       @id @default(autoincrement())
+  requester_id  Int
+  adressee_id   Int
+  status        String?   @db.VarChar
+  request_at    DateTime? @db.Timestamptz(6)
+  respondend_at DateTime? @db.Timestamptz(6)
+  adressee      user      @relation("ConnectionAdressee", fields: [adressee_id], references: [id_user])
+  requester     user      @relation("ConnectionRequester", fields: [requester_id], references: [id_user])
+}

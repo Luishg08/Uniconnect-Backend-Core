@@ -1,0 +1,10 @@
+model enrollment {
+  id_enrollment Int     @id @default(autoincrement())
+  id_user       Int?
+  id_course     Int?
+  status        String? @db.VarChar
+  course        course? @relation(fields: [id_course], references: [id_course])
+  user          user?   @relation(fields: [id_user], references: [id_user])
+
+  @@unique([id_user, id_course], name: "enrollment_user_course_unique")
+}

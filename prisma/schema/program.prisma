@@ -1,0 +1,7 @@
+model program {
+  id_program Int      @id @default(autoincrement())
+  name       String?  @db.VarChar
+  courses    course[]
+  events     event[]
+  users      user[]
+}

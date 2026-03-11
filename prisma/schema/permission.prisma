@@ -1,0 +1,7 @@
+model permission {
+  id_permission Int      @id @default(autoincrement())
+  name          String   @db.VarChar
+  description   String   @db.VarChar
+  claim         String   @db.VarChar
+  accesses      access[]
+}
