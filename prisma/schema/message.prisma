@@ -6,6 +6,6 @@ model message {
   attachments   String?
   edited_at     DateTime?   @db.Timestamptz(6)
   is_edited     Boolean     @default(false)
-  file          file?
+  files         file[]
   membership    membership? @relation(fields: [id_membership], references: [id_membership])
 }

@@ -10,5 +10,4 @@ model group {
   owner            user?              @relation(fields: [owner_id], references: [id_user])
   group_invitation group_invitation[]
   memberships      membership[]
-
 }
