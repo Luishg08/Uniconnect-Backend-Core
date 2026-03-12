@@ -142,21 +142,21 @@ export class MessagesGateway
   /**
    * Recibir nuevo mensaje en tiempo real
    * Evento: 'message:send'
-   * Datos: { text_content, attachments? }
+   * Datos: { text_content, attachments?, files? }
    * El id_membership se toma de la sesión autenticada
    */
   @SubscribeMessage('message:send')
   async handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { text_content: string; attachments?: string },
+    @MessageBody() data: { text_content: string; attachments?: string | null; files?: any[] },
   ) {
     try {
       const id_group = client.data.id_group as number;
       const id_membership = client.data.id_membership as number;
       const id_user = client.data.id_user as number;
-      
+
       this.logger.debug(`handleMessage client.data:`, client.data);
-      
+
       if (!id_group || !id_membership || !id_user) {
         this.logger.warn(`Usuario no autenticado completamente`, client.data);
         return { error: 'Usuario no autenticado. Llama a authenticate primero.' };
@@ -166,11 +166,18 @@ export class MessagesGateway
       const createMessageDto = {
         id_membership: id_membership,
         text_content: data.text_content,
-        attachments: data.attachments || '',
+        attachments: data.attachments || null,
+        files: data.files || [],
       };
 
       // Guardar mensaje en BD
       const message = await this.messagesService.create(createMessageDto);
+
+      if (!message) {
+        this.logger.error(`Error creando mensaje - resultado nulo`);
+        return { error: 'Error al crear mensaje' };
+      }
+
       const sendAt = message.send_at ?? new Date();
 
       // Validar que exista el usuario
@@ -182,13 +189,24 @@ export class MessagesGateway
         return { error: 'Error: usuario faltante en la base de datos' };
       }
 
+      // Formar array de archivos con tipos seguros
+      const filesArray = (message.files || []).map((file: any) => ({
+        id_file: file.id_file,
+        url: file.url,
+        file_name: file.file_name,
+        mime_type: file.mime_type,
+        size: file.size ?? undefined,
+        created_at: file.created_at ?? undefined,
+      }));
+
       // Formatear mensaje para envio a clientes
       const messageEvent: MessageEventDto = {
         id_message: message.id_message,
         id_membership: message.id_membership!,
         text_content: message.text_content || '',
         send_at: sendAt,
-        attachments: message.attachments || '',
+        attachments: message.attachments || null,
+        files: filesArray,
         user: {
           id_user: message.membership.user.id_user,
           full_name: message.membership.user.full_name!,

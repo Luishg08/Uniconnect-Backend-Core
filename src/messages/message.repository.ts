@@ -32,6 +32,16 @@ export class MessageRepository {
         },
       },
     },
+    files: {
+      select: {
+        id_file: true,
+        url: true,
+        file_name: true,
+        mime_type: true,
+        size: true,
+        created_at: true,
+      },
+    },
   } as const;
 
   // ── Escritura ─────────────────────────────────────────────────────────────
@@ -41,11 +51,55 @@ export class MessageRepository {
       data: {
         id_membership: dto.id_membership,
         text_content: dto.text_content,
-        attachments: dto.attachments,
+        attachments: dto.attachments || null,
         send_at: dto.send_at ?? new Date(),
       },
       include: this.membershipInclude,
     });
+  }
+
+  /**
+   * Crear mensaje con archivos asociados
+   */
+  async createWithFiles(
+    dto: CreateMessageDto,
+    files?: Array<{ url: string; file_name: string; mime_type: string; size: number; id_group: number }>,
+  ) {
+    const message = await this.prisma.message.create({
+      data: {
+        id_membership: dto.id_membership,
+        text_content: dto.text_content,
+        attachments: dto.attachments || null,
+        send_at: dto.send_at ?? new Date(),
+      },
+      include: this.membershipInclude,
+    });
+
+    // Si hay archivos, crearlos después
+    if (files && files.length > 0) {
+      await Promise.all(
+        files.map((file) =>
+          this.prisma.file.create({
+            data: {
+              url: file.url,
+              file_name: file.file_name,
+              mime_type: file.mime_type,
+              size: file.size,
+              id_group: file.id_group,
+              id_message: message.id_message,
+            },
+          }),
+        ),
+      );
+
+      // Re-obtener mensaje con archivos actualizados
+      return this.prisma.message.findUnique({
+        where: { id_message: message.id_message },
+        include: this.membershipInclude,
+      });
+    }
+
+    return message;
   }
 
   /**
@@ -55,7 +109,7 @@ export class MessageRepository {
   async updateIfOwner(
     id_message: number,
     userId: number,
-    dto: UpdateMessageDto,
+    dto: { text_content?: string; edited_at?: Date; is_edited?: boolean },
   ) {
     const msg = await this.prisma.message.findUnique({
       where: { id_message },
@@ -150,6 +204,23 @@ export class MessageRepository {
       where: { id_membership },
       include: this.membershipInclude,
       orderBy: { send_at: 'asc' },
+    });
+  }
+
+  /**
+   * Obtener archivos de un mensaje
+   */
+  async getMessageFiles(id_message: number) {
+    return this.prisma.file.findMany({
+      where: { id_message },
+      select: {
+        id_file: true,
+        url: true,
+        file_name: true,
+        mime_type: true,
+        size: true,
+        created_at: true,
+      },
     });
   }
 

@@ -20,10 +20,13 @@ export class MessagesService {
    * Crear un nuevo mensaje y emitir evento
    */
   async create(createMessageDto: CreateMessageDto) {
-    const message = await this.messageRepository.create(createMessageDto);
+    const message = await this.messageRepository.createWithFiles(
+      createMessageDto,
+      createMessageDto.files,
+    );
 
     // Emitir evento de mensaje enviado
-    if (message.membership?.user && message.membership?.group) {
+    if (message && message.membership?.user && message.membership?.group) {
       const payload: MessageSentPayload = {
         id_message: message.id_message,
         id_group: message.membership.group.id_group,

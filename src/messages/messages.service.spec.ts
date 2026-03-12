@@ -48,6 +48,8 @@ describe('MessagesService', () => {
         text_content: createMessageDto.text_content,
         attachments: null,
         send_at: new Date(),
+        edited_at: null,
+        is_edited: false,
       });
 
       const result = await service.create(createMessageDto);

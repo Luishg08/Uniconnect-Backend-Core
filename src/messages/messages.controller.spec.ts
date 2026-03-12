@@ -48,6 +48,8 @@ describe('MessagesController', () => {
         attachments: null,
         send_at: new Date(),
         membership: null,
+        edited_at: null,
+        is_edited: false,
       });
 
       const result = await controller.create(createMessageDto);
