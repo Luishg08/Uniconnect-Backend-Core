@@ -1,11 +1,18 @@
-import { Controller, Post, Get, Body, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseInterceptors, UploadedFiles, UseGuards, Req } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
+import { MessagesGateway } from '../messages/messages.gateway';
+import { MessageRepository } from '../messages/message.repository';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { File } from 'multer';
 
 @Controller('files')
 export class FilesController {
-  constructor(private readonly filesService: FilesService) {}
+  constructor(
+    private readonly filesService: FilesService,
+    private readonly messagesGateway: MessagesGateway,
+    private readonly messageRepository: MessageRepository,
+  ) {}
 
   /**
    * Endpoint de prueba para validar conexión a S3
@@ -17,24 +24,65 @@ export class FilesController {
   }
 
   @Post('upload')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(FilesInterceptor('files', 5))
   async uploadFiles(
     @UploadedFiles() files: File[],
     @Body('id_group') id_group: string,
-    @Body('id_message') id_message?: string,
+    @Body('id_message') id_message: string | undefined,
+    @Req() req: any,
   ) {
     const parsedGroupId = parseInt(id_group, 10);
     const parsedMessageId = id_message ? parseInt(id_message, 10) : undefined;
+    const userId = req.user.sub; // id_user del JWT
 
-    const savedFiles = await this.filesService.uploadGroupFiles(
-      files, 
-      parsedGroupId, 
-      parsedMessageId
+    const result = await this.filesService.uploadGroupFiles(
+      files,
+      parsedGroupId,
+      userId,
+      parsedMessageId,
     );
+
+    // Obtener el mensaje completo con files + membership para emitir por WebSocket
+    const fullMessage = await this.messageRepository.findById(result.messageId);
+
+    if (fullMessage && fullMessage.membership?.user) {
+      // Formatear archivos
+      const filesArray = (fullMessage.files || []).map((file: any) => ({
+        id_file: file.id_file,
+        url: file.url,
+        file_name: file.file_name,
+        mime_type: file.mime_type,
+        size: file.size ?? undefined,
+        created_at: file.created_at ?? undefined,
+      }));
+
+      // Emitir message:new al grupo para que todos vean los archivos en tiempo real
+      const messageEvent = {
+        id_message: fullMessage.id_message,
+        id_membership: fullMessage.id_membership,
+        text_content: fullMessage.text_content || '',
+        send_at: fullMessage.send_at,
+        attachments: fullMessage.attachments || null,
+        files: filesArray,
+        user: {
+          id_user: fullMessage.membership.user.id_user,
+          full_name: fullMessage.membership.user.full_name,
+          picture: fullMessage.membership.user.picture ?? undefined,
+        },
+        group: {
+          id_group: fullMessage.membership.group?.id_group ?? parsedGroupId,
+          name: fullMessage.membership.group?.name || 'Grupo',
+        },
+      };
+
+      this.messagesGateway.sendMessageToGroup(parsedGroupId, 'message:new', messageEvent);
+    }
 
     return {
       message: 'Archivos subidos con éxito a S3 y guardados en base de datos',
-      data: savedFiles,
+      data: result.files,
+      id_message: result.messageId,
     };
   }
 }
