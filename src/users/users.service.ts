@@ -102,6 +102,184 @@ export class UsersService {
     });
   }
 
+  async getConnectedCommunityUsers(userId: number) {
+    const parsedUserId = Number(userId);
+
+    // Obtener materias inscritas activas del usuario autenticado
+    const userEnrollments = await (this.prisma.enrollment as any).findMany({
+      where: { id_user: parsedUserId },
+      select: { id_course: true },
+    });
+    const userCourseIds = userEnrollments
+      .map((e: any) => e.id_course)
+      .filter((id: any) => id !== null && id !== undefined)
+      .map((id: any) => Number(id));
+
+    const acceptedConnections = await this.prisma.connection.findMany({
+      where: {
+        status: 'accepted',
+        OR: [
+          { requester_id: parsedUserId },
+          { adressee_id: parsedUserId },
+        ],
+      },
+      select: {
+        id_connection: true,
+        requester_id: true,
+        adressee_id: true,
+        status: true,
+      },
+    });
+
+    if (acceptedConnections.length === 0) {
+      return [];
+    }
+
+    const connectedUserIds = acceptedConnections.map((conn) => (
+      conn.requester_id === parsedUserId ? conn.adressee_id : conn.requester_id
+    ));
+
+    const connectedUsers = await this.prisma.user.findMany({
+      where: {
+        id_user: { in: connectedUserIds },
+      },
+      include: {
+        program: true,
+        enrollments: {
+          include: {
+            course: true,
+          },
+        },
+      },
+    });
+
+    const connectionMap = new Map<number, number>();
+    acceptedConnections.forEach((conn) => {
+      const otherUserId = conn.requester_id === parsedUserId ? conn.adressee_id : conn.requester_id;
+      connectionMap.set(otherUserId, conn.id_connection);
+    });
+
+    return connectedUsers.map((user: any) => {
+      const common_courses = user.enrollments
+        .filter((e: any) => e.id_course !== null && userCourseIds.includes(Number(e.id_course)))
+        .map((e: any) => ({
+          id_course: e.course?.id_course,
+          name: e.course?.name,
+        }));
+      return {
+        ...user,
+        connection_status: 'connected',
+        id_connection: connectionMap.get(user.id_user) || null,
+        common_courses,
+      };
+    });
+  }
+
+  async getNotConnectedCommunityUsers(userId: number) {
+    const parsedUserId = Number(userId);
+
+    // Obtener materias inscritas activas del usuario autenticado
+    const userEnrollments = await (this.prisma.enrollment as any).findMany({
+      where: { id_user: parsedUserId },
+      select: { id_course: true },
+    });
+    const userCourseIds = userEnrollments
+      .map((e: any) => e.id_course)
+      .filter((id: any) => id !== null && id !== undefined)
+      .map((id: any) => Number(id));
+
+    const acceptedConnections = await this.prisma.connection.findMany({
+      where: {
+        status: 'accepted',
+        OR: [
+          { requester_id: parsedUserId },
+          { adressee_id: parsedUserId },
+        ],
+      },
+      select: {
+        requester_id: true,
+        adressee_id: true,
+      },
+    });
+
+    const connectedUserIds = acceptedConnections.map((conn) => (
+      conn.requester_id === parsedUserId ? conn.adressee_id : conn.requester_id
+    ));
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        id_user: {
+          not: parsedUserId,
+          notIn: connectedUserIds,
+        },
+      },
+      include: {
+        program: true,
+        enrollments: {
+          include: {
+            course: true,
+          },
+        },
+      },
+    });
+
+    const userIds = users.map((u) => u.id_user);
+    const existingConnections = userIds.length > 0
+      ? await this.prisma.connection.findMany({
+        where: {
+          OR: [
+            {
+              requester_id: parsedUserId,
+              adressee_id: { in: userIds },
+            },
+            {
+              requester_id: { in: userIds },
+              adressee_id: parsedUserId,
+            },
+          ],
+        },
+        select: {
+          requester_id: true,
+          adressee_id: true,
+          status: true,
+        },
+      })
+      : [];
+
+    const connectionByUser = new Map<number, { status: string | null; requester_id: number }>();
+    existingConnections.forEach((conn) => {
+      const otherUserId = conn.requester_id === parsedUserId ? conn.adressee_id : conn.requester_id;
+      connectionByUser.set(otherUserId, {
+        status: conn.status,
+        requester_id: conn.requester_id,
+      });
+    });
+
+    return users.map((user: any) => {
+      const connection = connectionByUser.get(user.id_user);
+      const connection_status = connection
+        ? connection.status === 'accepted'
+          ? 'connected'
+          : connection.requester_id === parsedUserId
+            ? 'pending_sent'
+            : 'pending_received'
+        : 'none';
+
+      const common_courses = user.enrollments
+        .filter((e: any) => e.id_course !== null && userCourseIds.includes(Number(e.id_course)))
+        .map((e: any) => ({
+          id_course: e.course?.id_course,
+          name: e.course?.name,
+        }));
+
+      return {
+        ...user,
+        connection_status,
+        common_courses,
+      };
+    });
+  } 
+
   async getProfile(userId: number) {
     return await this.prisma.user.findUnique({
       where: { id_user: userId },

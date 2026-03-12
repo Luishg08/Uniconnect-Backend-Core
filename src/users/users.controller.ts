@@ -37,6 +37,26 @@ export class UsersController {
     }
 
     @UseGuards(JwtAuthGuard)
+    @Get('community/connected')
+    @ApiOperation({
+        summary: 'HU-Comunidad: Listar amigos en comunidad',
+        description: 'Lista usuarios con conexión aceptada del usuario autenticado para sección Amigos.'
+    })
+    async getConnectedCommunity(@GetClaim('sub') userId: number) {
+        return this.usersService.getConnectedCommunityUsers(userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('community/not-connected')
+    @ApiOperation({
+        summary: 'HU-Comunidad: Listar usuarios no conectados',
+        description: 'Lista todos los usuarios que no tienen conexión aceptada con el usuario autenticado para sección Comunidad general.'
+    })
+    async getNotConnectedCommunity(@GetClaim('sub') userId: number) {
+        return this.usersService.getNotConnectedCommunityUsers(userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
     @Get('profile')
     async getProfile(@GetClaim('sub') userId: number) {
         return this.usersService.getProfile(userId);
