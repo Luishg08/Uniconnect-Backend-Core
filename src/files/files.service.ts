@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, InternalServerErrorException, Inject } from '@nestjs/common';
-import { S3Client, PutObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { Injectable, BadRequestException, InternalServerErrorException, NotFoundException, Inject } from '@nestjs/common';
+import { S3Client, PutObjectCommand, HeadBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import * as multer from 'multer';
@@ -141,4 +142,49 @@ export class FilesService {
       messageId: currentMessageId!,
     };
   }
+
+    /**
+     * Genera una URL prefirmada para descargar un archivo desde S3
+     * @param id_file - ID del archivo en la base de datos
+     * @returns URL prefirmada válida por 3600 segundos (1 hora)
+     */
+    async getPresignedUrl(id_file: number): Promise<string> {
+      // Buscar el archivo en la base de datos
+      const file = await this.prisma.file.findUnique({
+        where: { id_file },
+      });
+
+      if (!file) {
+        throw new NotFoundException(`Archivo con ID ${id_file} no encontrado`);
+      }
+
+      // Extraer la clave (Key) del archivo desde la URL almacenada
+      // Formato esperado: https://bucket.s3.region.amazonaws.com/uploads/filename.ext
+      const urlParts = file.url.split('.amazonaws.com/');
+      if (urlParts.length < 2) {
+        throw new InternalServerErrorException('URL del archivo tiene formato inválido');
+      }
+
+      // Decodificar la clave por si contiene espacios u otros caracteres especiales
+      const key = decodeURIComponent(urlParts[1]);
+
+      // Crear el comando para obtener el objeto de S3
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      // Generar la URL prefirmada con expiración de 3600 segundos (1 hora)
+      try {
+        const signedUrl = await getSignedUrl(this.s3Client, command, {
+          expiresIn: 3600,
+        });
+
+        return signedUrl;
+      } catch (error) {
+        throw new InternalServerErrorException(
+          `Error al generar URL prefirmada: ${error.message}`,
+        );
+      }
+    }
 }

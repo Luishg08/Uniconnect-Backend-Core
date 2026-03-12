@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseInterceptors, UploadedFiles, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseInterceptors, UploadedFiles, UseGuards, Req, Param, ParseIntPipe } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
 import { MessagesGateway } from '../messages/messages.gateway';
@@ -85,4 +85,22 @@ export class FilesController {
       id_message: result.messageId,
     };
   }
+
+    /**
+     * Endpoint para obtener URL prefirmada de descarga
+     * GET /files/:id/download
+     * Protegido con JWT
+     */
+    @Get(':id/download')
+    @UseGuards(JwtAuthGuard)
+    async getDownloadUrl(@Param('id', ParseIntPipe) id: number) {
+      const signedUrl = await this.filesService.getPresignedUrl(id);
+
+      return {
+        success: true,
+        data: {
+          url: signedUrl,
+        },
+      };
+    }
 }
