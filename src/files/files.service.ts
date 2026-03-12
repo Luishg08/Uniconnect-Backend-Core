@@ -64,7 +64,7 @@ export class FilesService {
       throw new BadRequestException(`El grupo con id ${id_group} no existe`);
     }
 
-    // 1. Subir todos los archivos a AWS S3 en paralelo
+    // 1. Subir todos los archivos a AWS S3 en concurrencia
     const uploadPromises = files.map(async (file) => {
       try {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
