@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { MessagesModule } from '../messages/messages.module';
 import { S3Client } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, MessagesModule],
   controllers: [FilesController],
   providers: [
     FilesService,
