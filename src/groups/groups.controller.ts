@@ -278,4 +278,23 @@ export class GroupsController {
   ) {
     return this.groupsService.getGroupInfo(groupId, userId);
   }
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/invitations/:invitationId/accept')
+  acceptInvitation(
+    @Param('id', ParseIntPipe) groupId: number,
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+    @GetClaim('sub') userId: number,
+  ) {
+    return this.groupsService.acceptInvitation(invitationId, groupId, userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/invitations/:invitationId/reject')
+  rejectInvitation(
+    @Param('id', ParseIntPipe) groupId: number,
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+    @GetClaim('sub') userId: number,
+  ) {
+    return this.groupsService.rejectInvitation(invitationId, groupId, userId);
+  }
 }

@@ -580,37 +580,104 @@ export class GroupsService {
   }
 
   async rejectJoinRequest(requestId: number, groupId: number, userId: number) {
-    // Verificar que el usuario es el owner
-    const group = await this.prisma.group.findUnique({
-      where: { id_group: groupId },
-      select: { owner_id: true },
+      // Verificar que el usuario es el owner
+      const group = await this.prisma.group.findUnique({
+        where: { id_group: groupId },
+        select: { owner_id: true },
+      });
+
+      if (!group || group.owner_id !== userId) {
+        throw new ForbiddenException('No tienes permiso para rechazar solicitudes');
+      }
+
+      const request = await this.prisma.group_join_request.findUnique({
+        where: { id_request: requestId },
+      });
+
+      if (!request || request.id_group !== groupId) {
+        throw new NotFoundException('Solicitud no encontrada');
+      }
+
+      if (request.status !== 'pending') {
+        throw new BadRequestException('Esta solicitud ya fue respondida');
+      }
+
+      return await this.prisma.group_join_request.update({
+        where: { id_request: requestId },
+        data: {
+          status: 'rejected',
+          responded_at: new Date(),
+        },
+      });
+    }
+    async acceptInvitation(invitationId: number, groupId: number, userId: number) {
+    // Buscar la invitación y validar que existe, pertenece al grupo y está pendiente
+    const invitation = await this.prisma.group_invitation.findUnique({
+      where: { id_invitation: invitationId },
     });
 
-    if (!group || group.owner_id !== userId) {
-      throw new ForbiddenException('No tienes permiso para rechazar solicitudes');
+    if (!invitation || invitation.id_group !== groupId) {
+      throw new NotFoundException('Invitación no encontrada');
     }
 
-    const request = await this.prisma.group_join_request.findUnique({
-      where: { id_request: requestId },
+    if (invitation.invitee_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para aceptar esta invitación');
+    }
+
+    if (invitation.status !== 'pending') {
+      throw new BadRequestException('Esta invitación ya fue respondida');
+    }
+
+    // Crear membresía y actualizar invitación en transacción
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.membership.create({
+        data: {
+          id_user: userId,
+          id_group: groupId,
+          is_admin: false,
+          joined_at: new Date(),
+        },
+      });
+
+      return await tx.group_invitation.update({
+        where: { id_invitation: invitationId },
+        data: {
+          status: 'accepted',
+          responded_at: new Date(),
+        },
+        include: {
+          inviter: { select: { id_user: true, full_name: true, picture: true } },
+        },
+      });
+    });
+  }
+
+  async rejectInvitation(invitationId: number, groupId: number, userId: number) {
+    // Buscar la invitación y validar que existe, pertenece al grupo y está pendiente
+    const invitation = await this.prisma.group_invitation.findUnique({
+      where: { id_invitation: invitationId },
     });
 
-    if (!request || request.id_group !== groupId) {
-      throw new NotFoundException('Solicitud no encontrada');
+    if (!invitation || invitation.id_group !== groupId) {
+      throw new NotFoundException('Invitación no encontrada');
     }
 
-    if (request.status !== 'pending') {
-      throw new BadRequestException('Esta solicitud ya fue respondida');
+    if (invitation.invitee_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para rechazar esta invitación');
     }
 
-    return await this.prisma.group_join_request.update({
-      where: { id_request: requestId },
+    if (invitation.status !== 'pending') {
+      throw new BadRequestException('Esta invitación ya fue respondida');
+    }
+
+    return await this.prisma.group_invitation.update({
+      where: { id_invitation: invitationId },
       data: {
         status: 'rejected',
         responded_at: new Date(),
       },
     });
   }
-
   // =====================================================
   // GESTIÓN DE MIEMBROS
   // =====================================================
