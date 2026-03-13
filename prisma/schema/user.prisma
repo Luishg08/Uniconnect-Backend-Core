@@ -21,4 +21,5 @@ model user {
 
   invitations_sent     group_invitation[] @relation("GroupInviter")
   invitations_received group_invitation[] @relation("GroupInvitee")
+  group_join_requests  group_join_request[]
 }

@@ -10,5 +10,6 @@ model group {
   course             course?            @relation(fields: [id_course], references: [id_course])
   owner              user?              @relation(fields: [owner_id], references: [id_user])
   group_invitation   group_invitation[]
+  group_join_request group_join_request[]
   memberships        membership[]
 }

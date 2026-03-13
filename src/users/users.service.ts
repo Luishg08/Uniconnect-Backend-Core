@@ -278,7 +278,192 @@ export class UsersService {
         common_courses,
       };
     });
-  } 
+  }
+
+  async getConnectionsWithCourses(userId: number) {
+    const parsedUserId = Number(userId);
+
+    // Obtener materias inscritas activas del usuario autenticado
+    const userEnrollments = await (this.prisma.enrollment as any).findMany({
+      where: { id_user: parsedUserId },
+      select: { id_course: true },
+    });
+    const userCourseIds = userEnrollments
+      .map((e: any) => e.id_course)
+      .filter((id: any) => id !== null && id !== undefined)
+      .map((id: any) => Number(id));
+
+    // Obtener conexiones aceptadas
+    const acceptedConnections = await this.prisma.connection.findMany({
+      where: {
+        status: 'accepted',
+        OR: [
+          { requester_id: parsedUserId },
+          { adressee_id: parsedUserId },
+        ],
+      },
+      select: {
+        requester_id: true,
+        adressee_id: true,
+      },
+    });
+
+    if (acceptedConnections.length === 0) {
+      return [];
+    }
+
+    // Extraer IDs de usuarios conectados
+    const connectedUserIds = acceptedConnections.map((conn) =>
+      conn.requester_id === parsedUserId ? conn.adressee_id : conn.requester_id,
+    );
+
+    // Obtener datos de los usuarios conectados con sus materias
+    const connectedUsers = await this.prisma.user.findMany({
+      where: {
+        id_user: { in: connectedUserIds },
+      },
+      include: {
+        program: {
+          select: { name: true },
+        },
+        enrollments: {
+          select: {
+            id_course: true,
+            course: {
+              select: {
+                id_course: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Mapear resultado con cursos en común
+    return connectedUsers
+      .map((user: any) => {
+        const common_courses = user.enrollments
+          .filter(
+            (e: any) =>
+              e.id_course !== null && userCourseIds.includes(Number(e.id_course)),
+          )
+          .map((e: any) => ({
+            id_course: e.course?.id_course,
+            name: e.course?.name,
+          }));
+
+        return {
+          id_user: user.id_user,
+          full_name: user.full_name,
+          picture: user.picture,
+          email: user.email,
+          program: user.program,
+          common_courses,
+        };
+      })
+      .filter((user: any) => user.common_courses.length > 0); // Solo retornar conexiones con cursos en común
+  }
+
+  async getConnectionsForGroupInvite(userId: number, groupId: number) {
+    const parsedUserId = Number(userId);
+    const parsedGroupId = Number(groupId);
+
+    // LOG: userId y groupId recibidos
+    console.log('[INVITE-DEBUG] userId:', parsedUserId, 'groupId:', parsedGroupId);
+
+    // Obtener el grupo y su curso asociado
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: parsedGroupId },
+      select: { id_course: true, owner_id: true },
+    });
+
+    if (!group) {
+      console.log('[INVITE-DEBUG] Grupo no encontrado:', groupId);
+      throw new NotFoundException(`Grupo con ID ${groupId} no encontrado`);
+    }
+
+    if (!group.id_course) {
+      console.log('[INVITE-DEBUG] Grupo sin materia asociada:', groupId);
+      throw new NotFoundException(`El grupo no tiene una materia asociada`);
+    }
+
+    if (group.owner_id !== parsedUserId) {
+      console.log('[INVITE-DEBUG] Usuario no es owner del grupo:', parsedUserId, groupId);
+      throw new ForbiddenException(`Solo el owner del grupo puede invitar usuarios`);
+    }
+
+    const groupCourseId = Number(group.id_course);
+
+    // Obtener conexiones aceptadas
+    const acceptedConnections = await this.prisma.connection.findMany({
+      where: {
+        status: 'accepted',
+        OR: [
+          { requester_id: parsedUserId },
+          { adressee_id: parsedUserId },
+        ],
+      },
+      select: {
+        requester_id: true,
+        adressee_id: true,
+      },
+    });
+
+    console.log('[INVITE-DEBUG] Conexiones aceptadas:', acceptedConnections.length);
+
+    if (acceptedConnections.length === 0) {
+      console.log('[INVITE-DEBUG] No hay conexiones aceptadas para el usuario');
+      return [];
+    }
+
+    // Extraer IDs de usuarios conectados
+    const connectedUserIds = acceptedConnections.map((conn) =>
+      conn.requester_id === parsedUserId ? conn.adressee_id : conn.requester_id,
+    );
+
+    // Obtener datos de los usuarios conectados que tengan la materia del grupo
+    const connectedUsers = await this.prisma.user.findMany({
+      where: {
+        id_user: { in: connectedUserIds },
+      },
+      include: {
+        program: {
+          select: { name: true },
+        },
+        enrollments: {
+          where: { id_course: groupCourseId },
+          select: {
+            id_course: true,
+            course: {
+              select: {
+                id_course: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const invitables = connectedUsers
+      .filter((user: any) => user.enrollments.length > 0)
+      .map((user: any) => ({
+        id_user: user.id_user,
+        full_name: user.full_name,
+        picture: user.picture,
+        email: user.email,
+        program: user.program,
+        course: {
+          id_course: user.enrollments[0].course?.id_course,
+          name: user.enrollments[0].course?.name,
+        },
+      }));
+
+    console.log('[INVITE-DEBUG] Conexiones con la materia del grupo:', invitables.length);
+    console.log('[INVITE-DEBUG] Respuesta enviada:', JSON.stringify(invitables));
+    return invitables;
+  }
 
   async getProfile(userId: number) {
     return await this.prisma.user.findUnique({
