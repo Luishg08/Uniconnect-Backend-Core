@@ -18,6 +18,7 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { MessagesModule } from './messages/messages.module';
 import { GroupInvitationsModule } from './group-invitations/group-invitations.module';
 import { FilesModule } from './files/files.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
    imports: [
@@ -48,6 +49,7 @@ import { FilesModule } from './files/files.module';
     MessagesModule,
     GroupInvitationsModule,
     FilesModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService, RolesService, PermissionsService],

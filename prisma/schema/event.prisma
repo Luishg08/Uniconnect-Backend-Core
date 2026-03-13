@@ -1,9 +1,29 @@
+enum EventType {
+  CONFERENCIA
+  TALLER
+  SEMINARIO
+  COMPETENCIA
+  CULTURAL
+  DEPORTIVO
+}
+
 model event {
-  id_event    Int       @id @default(autoincrement())
-  title       String?   @db.VarChar
-  description String?   @db.VarChar
-  event_date  DateTime? @db.Timestamptz(6)
-  id_program  Int?
-  image       String?
-  program     program?  @relation(fields: [id_program], references: [id_program])
+  id          String    @id @default(uuid())
+  title       String
+  description String
+  date        DateTime
+  time        String
+  location    String
+  type        EventType
+  created_by  Int       // ID del usuario que creó el evento
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  creator     user      @relation(fields: [created_by], references: [id_user])
+
+  @@index([date])
+  @@index([type])
+  @@index([date, type])
+  @@index([created_by])
+  @@map("events")
 }

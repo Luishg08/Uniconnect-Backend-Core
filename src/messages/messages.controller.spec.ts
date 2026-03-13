@@ -50,6 +50,7 @@ describe('MessagesController', () => {
         membership: null,
         edited_at: null,
         is_edited: false,
+        files: [],
       });
 
       const result = await controller.create(createMessageDto);

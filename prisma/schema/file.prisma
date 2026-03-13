@@ -5,10 +5,8 @@ model file {
   mime_type  String    @db.VarChar
   size       Int?
   created_at DateTime? @default(now()) @db.Timestamptz(6)
-
   id_message Int?
   id_group   Int?
-
-  group   group?   @relation(fields: [id_group], references: [id_group], onDelete: Cascade)
-  message message? @relation(fields: [id_message], references: [id_message], onDelete: Cascade)
+  group      group?    @relation(fields: [id_group], references: [id_group], onDelete: Cascade)
+  message    message?  @relation(fields: [id_message], references: [id_message], onDelete: Cascade)
 }

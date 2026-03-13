@@ -8,5 +8,5 @@ model membership {
   user          user?     @relation(fields: [id_user], references: [id_user])
   messages      message[]
 
-  @@unique([id_user, id_group])
+  @@unique([id_user, id_group], name: "id_user_id_group")
 }

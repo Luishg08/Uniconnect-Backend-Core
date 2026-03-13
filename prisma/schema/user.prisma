@@ -1,25 +1,24 @@
 model user {
   id_role               Int
-  id_user               Int          @id @default(autoincrement())
-  full_name             String       @db.VarChar
-  cell_phone            String?      @db.VarChar
+  id_user               Int                @id @default(autoincrement())
+  full_name             String             @db.VarChar
+  cell_phone            String?            @db.VarChar
   picture               String?
-  email                 String       @db.VarChar
+  email                 String             @db.VarChar
   id_program            Int?
   current_semester      Int?
-  google_sub            String?      @db.VarChar
-  connections_adressee  connection[] @relation("ConnectionAdressee")
-  connections_requester connection[] @relation("ConnectionRequester")
+  google_sub            String?            @db.VarChar
+  connections_adressee  connection[]       @relation("ConnectionAdressee")
+  connections_requester connection[]       @relation("ConnectionRequester")
   enrollments           enrollment[]
   groups_owned          group[]
-
-  memberships   membership[]
-  notifications notification[]
-  push_token    push_token[]
-  program       program?       @relation(fields: [id_program], references: [id_program])
-  role          role           @relation(fields: [id_role], references: [id_role])
-
-  invitations_sent     group_invitation[] @relation("GroupInviter")
-  invitations_received group_invitation[] @relation("GroupInvitee")
-  group_join_requests  group_join_request[]
+  invitations_received  group_invitation[] @relation("GroupInvitee")
+  invitations_sent      group_invitation[] @relation("GroupInviter")
+  memberships           membership[]
+  notifications         notification[]
+  push_token            push_token[]
+  group_join_requests   group_join_request[]
+  events_created        event[]
+  program               program?           @relation(fields: [id_program], references: [id_program])
+  role                  role               @relation(fields: [id_role], references: [id_role])
 }

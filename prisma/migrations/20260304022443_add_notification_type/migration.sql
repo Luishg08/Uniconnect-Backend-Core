@@ -1,0 +1,2 @@
+-- This migration was already applied to the database
+-- Created as a placeholder to resolve migration drift
