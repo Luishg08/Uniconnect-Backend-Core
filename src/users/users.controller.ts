@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { UsersService } from './users.service';
-import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
 import { ProfileUpdateDto } from './dto/google-user-info.dto';
@@ -54,6 +54,37 @@ export class UsersController {
     })
     async getNotConnectedCommunity(@GetClaim('sub') userId: number) {
         return this.usersService.getNotConnectedCommunityUsers(userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('connections/with-courses/:groupId')
+    @ApiOperation({
+        summary: 'HU-Invitaciones: Conexiones con materia del grupo',
+        description: 'Lista conexiones aceptadas del usuario que comparten la materia específica del grupo, para invitarlos a ese grupo.'
+    })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Lista de conexiones con la materia del grupo',
+        schema: {
+            example: [{
+                id_user: 2,
+                full_name: 'Juan Perez',
+                picture: 'https://...',
+                email: 'juan@example.com',
+                program: { name: 'Ingeniería de Sistemas' },
+                course: {
+                    id_course: 1,
+                    name: 'Matemáticas'
+                }
+            }]
+        }
+    })
+    async getConnectionsForGroupInvite(
+        @GetClaim('sub') userId: number,
+        @Param('groupId') groupId: number
+    ) {
+        console.log('[CONTROLLER-INVITE] Endpoint llamado con userId:', userId, 'groupId:', groupId);
+        return this.usersService.getConnectionsForGroupInvite(userId, groupId);
     }
 
     @UseGuards(JwtAuthGuard)

@@ -7,4 +7,6 @@ model membership {
   group         group?    @relation(fields: [id_group], references: [id_group])
   user          user?     @relation(fields: [id_user], references: [id_user])
   messages      message[]
+
+  @@unique([id_user, id_group])
 }

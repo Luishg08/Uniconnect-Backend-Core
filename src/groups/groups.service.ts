@@ -441,4 +441,392 @@ export class GroupsService {
       );
     }
   }
+
+  // =====================================================
+  // GESTIÓN DE PARTICIPANTES - SOLICITUDES DE ACCESO
+  // =====================================================
+
+  async requestGroupAccess(userId: number, groupId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { id_group: true, is_direct_message: true, owner_id: true },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    if (group.is_direct_message) {
+      throw new BadRequestException('No puedes solicitar acceso a un chat directo');
+    }
+
+    // Verificar que el usuario no es ya miembro
+    const existingMembership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: userId, id_group: groupId } },
+    });
+
+    if (existingMembership) {
+      throw new BadRequestException('Ya eres miembro de este grupo');
+    }
+
+    // Verificar que no existe solicitud pendiente
+    const existingRequest = await this.prisma.group_join_request.findUnique({
+      where: { id_group_requester_id: { id_group: groupId, requester_id: userId } },
+    });
+
+    if (existingRequest && existingRequest.status === 'pending') {
+      throw new BadRequestException('Ya tienes una solicitud pendiente para este grupo');
+    }
+
+    // Crear o actualizar solicitud
+    return await this.prisma.group_join_request.upsert({
+      where: { id_group_requester_id: { id_group: groupId, requester_id: userId } },
+      create: {
+        id_group: groupId,
+        requester_id: userId,
+        status: 'pending',
+      },
+      update: {
+        status: 'pending',
+        requested_at: new Date(),
+        responded_at: null,
+      },
+      include: {
+        requester: {
+          select: { id_user: true, full_name: true, picture: true, email: true },
+        },
+      },
+    });
+  }
+
+  async getPendingJoinRequests(groupId: number, userId: number) {
+    // Verificar que el usuario es el owner del grupo
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { owner_id: true },
+    });
+
+    if (!group || group.owner_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para ver las solicitudes de este grupo');
+    }
+
+    return await this.prisma.group_join_request.findMany({
+      where: {
+        id_group: groupId,
+        status: 'pending',
+      },
+      include: {
+        requester: {
+          select: {
+            id_user: true,
+            full_name: true,
+            picture: true,
+            email: true,
+            program: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { requested_at: 'desc' },
+    });
+  }
+
+  async acceptJoinRequest(requestId: number, groupId: number, userId: number) {
+    // Verificar que el usuario es el owner
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { owner_id: true },
+    });
+
+    if (!group || group.owner_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para aceptar solicitudes');
+    }
+
+    const request = await this.prisma.group_join_request.findUnique({
+      where: { id_request: requestId },
+    });
+
+    if (!request || request.id_group !== groupId) {
+      throw new NotFoundException('Solicitud no encontrada');
+    }
+
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Esta solicitud ya fue respondida');
+    }
+
+    // Crear membresía y actualizar solicitud en transacción
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.membership.create({
+        data: {
+          id_user: request.requester_id,
+          id_group: groupId,
+          is_admin: false,
+          joined_at: new Date(),
+        },
+      });
+
+      return await tx.group_join_request.update({
+        where: { id_request: requestId },
+        data: {
+          status: 'accepted',
+          responded_at: new Date(),
+        },
+        include: {
+          requester: {
+            select: { id_user: true, full_name: true, picture: true },
+          },
+        },
+      });
+    });
+  }
+
+  async rejectJoinRequest(requestId: number, groupId: number, userId: number) {
+    // Verificar que el usuario es el owner
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { owner_id: true },
+    });
+
+    if (!group || group.owner_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para rechazar solicitudes');
+    }
+
+    const request = await this.prisma.group_join_request.findUnique({
+      where: { id_request: requestId },
+    });
+
+    if (!request || request.id_group !== groupId) {
+      throw new NotFoundException('Solicitud no encontrada');
+    }
+
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Esta solicitud ya fue respondida');
+    }
+
+    return await this.prisma.group_join_request.update({
+      where: { id_request: requestId },
+      data: {
+        status: 'rejected',
+        responded_at: new Date(),
+      },
+    });
+  }
+
+  // =====================================================
+  // GESTIÓN DE MIEMBROS
+  // =====================================================
+
+  async getGroupMembers(groupId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    return await this.prisma.membership.findMany({
+      where: { id_group: groupId },
+      include: {
+        user: {
+          select: {
+            id_user: true,
+            full_name: true,
+            picture: true,
+            email: true,
+            program: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { joined_at: 'asc' },
+    });
+  }
+
+  async leaveGroup(groupId: number, userId: number) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: userId, id_group: groupId } },
+      include: { group: { select: { owner_id: true } } },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('No eres miembro de este grupo');
+    }
+
+    // No permitir que el owner abandone así
+    if (membership.group?.owner_id === userId) {
+      throw new BadRequestException(
+        'El owner no puede abandonar el grupo. Designa a otro admin primero.',
+      );
+    }
+
+    return await this.prisma.membership.delete({
+      where: { id_user_id_group: { id_user: userId, id_group: groupId } },
+    });
+  }
+
+  async removeMember(groupId: number, memberId: number, userId: number) {
+    // Verificar que quien ejecuta es el owner o un admin
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { owner_id: true },
+    });
+
+    if (!group || group.owner_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para sacar miembros');
+    }
+
+    const membership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: memberId, id_group: groupId } },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('El usuario no es miembro de este grupo');
+    }
+
+    return await this.prisma.membership.delete({
+      where: { id_user_id_group: { id_user: memberId, id_group: groupId } },
+    });
+  }
+
+  async makeAdmin(groupId: number, memberId: number, userId: number) {
+    // Verificar que quien ejecuta es el owner
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { owner_id: true },
+    });
+
+    if (!group || group.owner_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para dar roles de admin');
+    }
+
+    const membership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: memberId, id_group: groupId } },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('El usuario no es miembro de este grupo');
+    }
+
+    return await this.prisma.membership.update({
+      where: { id_user_id_group: { id_user: memberId, id_group: groupId } },
+      data: { is_admin: true },
+      include: {
+        user: {
+          select: { id_user: true, full_name: true, picture: true },
+        },
+      },
+    });
+  }
+
+  async inviteUser(groupId: number, inviteeId: number, userId: number) {
+    // Verificar que quien ejecuta es el owner
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { owner_id: true },
+    });
+
+    if (!group || group.owner_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para invitar usuarios');
+    }
+
+    // Verificar que tiene conexión aceptada con el usuario
+    const connection = await this.prisma.connection.findFirst({
+      where: {
+        status: 'accepted',
+        OR: [
+          { requester_id: userId, adressee_id: inviteeId },
+          { requester_id: inviteeId, adressee_id: userId },
+        ],
+      },
+    });
+
+    if (!connection) {
+      throw new BadRequestException(
+        'Solo puedes invitar a usuarios con los que tengas conexión aceptada',
+      );
+    }
+
+    // Verificar que no es ya miembro
+    const existingMembership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: inviteeId, id_group: groupId } },
+    });
+
+    if (existingMembership) {
+      throw new BadRequestException('El usuario ya es miembro de este grupo');
+    }
+
+    // Verificar que no existe invitación pendiente
+    const existingInvitation = await this.prisma.group_invitation.findUnique({
+      where: { id_group_invitee_id: { id_group: groupId, invitee_id: inviteeId } },
+    });
+
+    if (existingInvitation && existingInvitation.status === 'pending') {
+      throw new BadRequestException(
+        'Ya existe una invitación pendiente para este usuario',
+      );
+    }
+
+    return await this.prisma.group_invitation.upsert({
+      where: { id_group_invitee_id: { id_group: groupId, invitee_id: inviteeId } },
+      create: {
+        id_group: groupId,
+        inviter_id: userId,
+        invitee_id: inviteeId,
+        status: 'pending',
+      },
+      update: {
+        status: 'pending',
+        invited_at: new Date(),
+        responded_at: null,
+      },
+      include: {
+        group: { select: { id_group: true, name: true } },
+        invitee: {
+          select: { id_user: true, full_name: true, picture: true },
+        },
+      },
+    });
+  }
+
+  async getGroupInfo(groupId: number, userId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      include: {
+        course: { select: { name: true, id_course: true } },
+        owner: { select: { id_user: true, full_name: true } },
+        memberships: {
+          include: {
+            user: {
+              select: {
+                id_user: true,
+                full_name: true,
+                picture: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    // Determinar rol del usuario actual
+    const userMembership = group.memberships.find((m) => m.id_user === userId);
+    const isOwner = group.owner_id === userId;
+    const isMember = !!userMembership;
+    const isAdmin = userMembership?.is_admin || false;
+
+    return {
+      ...group,
+      userRole: isOwner ? 'owner' : isAdmin ? 'admin' : isMember ? 'member' : 'none',
+      isMember,
+      isOwner,
+      isAdmin,
+      canManage: isOwner || isAdmin,
+      canInvite: isOwner,
+      canManageMembers: isOwner,
+    };
+  }
 }
