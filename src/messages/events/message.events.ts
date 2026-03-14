@@ -25,6 +25,11 @@ export const MESSAGE_EVENTS = {
   GROUP_INVITATION_ACCEPTED: 'group.invitation.accepted',
   GROUP_INVITATION_REJECTED: 'group.invitation.rejected',
 
+  // Eventos de solicitudes de unión a grupos
+  GROUP_JOIN_REQUEST_SENT: 'group.join_request.sent',
+  GROUP_JOIN_REQUEST_ACCEPTED: 'group.join_request.accepted',
+  GROUP_JOIN_REQUEST_REJECTED: 'group.join_request.rejected',
+
   // Eventos de conexiones
   CONNECTION_REQUEST_SENT: 'connection.request.sent',
   CONNECTION_REQUEST_ACCEPTED: 'connection.request.accepted',
@@ -102,4 +107,32 @@ export interface ConnectionRequestSentPayload {
   requester_picture?: string;
   addressee_id: number;
   sent_at: Date;
+}
+
+export interface GroupJoinRequestSentPayload {
+  id_request: number;
+  id_group: number;
+  group_name: string;
+  owner_id: number;
+  requester_id: number;
+  requester_name: string;
+  requester_picture?: string | null;
+  requested_at: Date;
+}
+
+export interface GroupJoinRequestAcceptedPayload {
+  id_request: number;
+  id_group: number;
+  group_name: string;
+  requester_id: number;
+  requester_name: string;
+  responded_at: Date;
+}
+
+export interface GroupJoinRequestRejectedPayload {
+  id_request: number;
+  id_group: number;
+  group_name: string;
+  requester_id: number;
+  responded_at: Date;
 }
