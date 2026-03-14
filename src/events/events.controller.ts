@@ -58,6 +58,13 @@ export class EventsController {
     @Body() createEventDto: CreateEventDto,
     @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
   ) {
+    // ⭐ DIAGNOSTIC: Log incoming request at controller level
+    console.log('🔍 [EventsController.create] Incoming request:', {
+      userId,
+      dto: createEventDto,
+      userFromRequest: 'extracted from JWT',
+    });
+
     return this.eventsService.create(createEventDto, userId);
   }
 
@@ -69,8 +76,9 @@ export class EventsController {
     @Param('id') id: string,
     @Body() updateEventDto: UpdateEventDto,
     @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
+    @GetClaim('roleName') userRole: string, // ⭐ Extract role from JWT
   ) {
-    return this.eventsService.update(id, updateEventDto, userId);
+    return this.eventsService.update(id, updateEventDto, userId, userRole);
   }
 
   @Delete(':id')
