@@ -1,14 +1,17 @@
 import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { GroupBusinessValidator } from './validators/group-business.validator';
+import { MESSAGE_EVENTS } from '../messages/events/message.events';
 
 @Injectable()
 export class GroupsService {
   constructor(
     private prisma: PrismaService,
     private groupValidator: GroupBusinessValidator,
+    private eventEmitter: EventEmitter2,
   ) { }
 
   // 1. Crear grupo con validaciones y membresía automática
@@ -466,7 +469,7 @@ export class GroupsService {
   async requestGroupAccess(userId: number, groupId: number) {
     const group = await this.prisma.group.findUnique({
       where: { id_group: groupId },
-      select: { id_group: true, is_direct_message: true, owner_id: true },
+      select: { id_group: true, is_direct_message: true, owner_id: true, name: true },
     });
 
     if (!group) {
@@ -496,7 +499,7 @@ export class GroupsService {
     }
 
     // Crear o actualizar solicitud
-    return await this.prisma.group_join_request.upsert({
+    const joinRequest = await this.prisma.group_join_request.upsert({
       where: { id_group_requester_id: { id_group: groupId, requester_id: userId } },
       create: {
         id_group: groupId,
@@ -514,6 +517,20 @@ export class GroupsService {
         },
       },
     });
+
+    // Emitir evento para notificar al owner del grupo
+    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
+      id_request: joinRequest.id_request,
+      id_group: groupId,
+      group_name: group.name ?? 'Grupo',
+      owner_id: group.owner_id!,
+      requester_id: userId,
+      requester_name: joinRequest.requester?.full_name ?? 'Usuario',
+      requester_picture: joinRequest.requester?.picture ?? null,
+      requested_at: joinRequest.requested_at,
+    });
+
+    return joinRequest;
   }
 
   async getPendingJoinRequests(groupId: number, userId: number) {
@@ -571,7 +588,7 @@ export class GroupsService {
     }
 
     // Crear membresía y actualizar solicitud en transacción
-    return await this.prisma.$transaction(async (tx) => {
+    const updatedRequest = await this.prisma.$transaction(async (tx) => {
       await tx.membership.create({
         data: {
           id_user: request.requester_id,
@@ -591,9 +608,22 @@ export class GroupsService {
           requester: {
             select: { id_user: true, full_name: true, picture: true },
           },
+          group: { select: { name: true } },
         },
       });
     });
+
+    // Notificar al requester que fue aceptado
+    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_ACCEPTED, {
+      id_request: requestId,
+      id_group: groupId,
+      group_name: (updatedRequest as any).group?.name ?? 'Grupo',
+      requester_id: request.requester_id,
+      requester_name: updatedRequest.requester?.full_name ?? 'Usuario',
+      responded_at: new Date(),
+    });
+
+    return updatedRequest;
   }
 
   async rejectJoinRequest(requestId: number, groupId: number, userId: number) {
@@ -619,15 +649,94 @@ export class GroupsService {
       throw new BadRequestException('Esta solicitud ya fue respondida');
     }
 
-    return await this.prisma.group_join_request.update({
+    const rejectedRequest = await this.prisma.group_join_request.update({
       where: { id_request: requestId },
+      data: {
+        status: 'rejected',
+        responded_at: new Date(),
+      },
+      include: { group: { select: { name: true } } },
+    });
+
+    // Notificar al requester que fue rechazado
+    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_REJECTED, {
+      id_request: requestId,
+      id_group: groupId,
+      group_name: (rejectedRequest as any).group?.name ?? 'Grupo',
+      requester_id: request.requester_id,
+      responded_at: new Date(),
+    });
+
+    return rejectedRequest;
+  }
+  async acceptInvitation(invitationId: number, groupId: number, userId: number) {
+    // Buscar la invitación y validar que existe, pertenece al grupo y está pendiente
+    const invitation = await this.prisma.group_invitation.findUnique({
+      where: { id_invitation: invitationId },
+    });
+
+    if (!invitation || invitation.id_group !== groupId) {
+      throw new NotFoundException('Invitación no encontrada');
+    }
+
+    if (invitation.invitee_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para aceptar esta invitación');
+    }
+
+    if (invitation.status !== 'pending') {
+      throw new BadRequestException('Esta invitación ya fue respondida');
+    }
+
+    // Crear membresía y actualizar invitación en transacción
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.membership.create({
+        data: {
+          id_user: userId,
+          id_group: groupId,
+          is_admin: false,
+          joined_at: new Date(),
+        },
+      });
+
+      return await tx.group_invitation.update({
+        where: { id_invitation: invitationId },
+        data: {
+          status: 'accepted',
+          responded_at: new Date(),
+        },
+        include: {
+          inviter: { select: { id_user: true, full_name: true, picture: true } },
+        },
+      });
+    });
+  }
+
+  async rejectInvitation(invitationId: number, groupId: number, userId: number) {
+    // Buscar la invitación y validar que existe, pertenece al grupo y está pendiente
+    const invitation = await this.prisma.group_invitation.findUnique({
+      where: { id_invitation: invitationId },
+    });
+
+    if (!invitation || invitation.id_group !== groupId) {
+      throw new NotFoundException('Invitación no encontrada');
+    }
+
+    if (invitation.invitee_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para rechazar esta invitación');
+    }
+
+    if (invitation.status !== 'pending') {
+      throw new BadRequestException('Esta invitación ya fue respondida');
+    }
+
+    return await this.prisma.group_invitation.update({
+      where: { id_invitation: invitationId },
       data: {
         status: 'rejected',
         responded_at: new Date(),
       },
     });
   }
-
   // =====================================================
   // GESTIÓN DE MIEMBROS
   // =====================================================

@@ -8,6 +8,9 @@ import type {
   GroupInvitationAcceptedPayload,
   UserJoinedGroupPayload,
   ConnectionRequestSentPayload,
+  GroupJoinRequestSentPayload,
+  GroupJoinRequestAcceptedPayload,
+  GroupJoinRequestRejectedPayload,
 } from '../../messages/events/message.events';
 
 /**
@@ -18,7 +21,7 @@ import type {
 export class NotificationEventListener {
   private readonly logger = new Logger(NotificationEventListener.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Escuchar evento de mensaje enviado
@@ -235,6 +238,96 @@ export class NotificationEventListener {
       this.logger.error('Error handling CONNECTION_REQUEST_SENT event:', error);
       // Re-lanzar para que sea visible
       throw error;
+    }
+  }
+
+  /**
+   * Escuchar evento de solicitud de unión a grupo enviada
+   * Notifica al OWNER del grupo que alguien quiere unirse
+   */
+  @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT)
+  async handleGroupJoinRequestSent(payload: GroupJoinRequestSentPayload) {
+    try {
+      this.logger.log(
+        `Handling GROUP_JOIN_REQUEST_SENT event: user ${payload.requester_id} → group ${payload.id_group}`,
+      );
+
+      await this.prisma.notification.create({
+        data: {
+          id_user: payload.owner_id,
+          message: `${payload.requester_name} quiere unirse a tu grupo "${payload.group_name}"`,
+          is_read: false,
+          created_at: new Date(),
+          related_entity_id: payload.id_request,
+          notification_type: 'group_join_request',
+        },
+      });
+
+      this.logger.log(
+        `Created join-request notification for owner ${payload.owner_id}`,
+      );
+    } catch (error) {
+      this.logger.error('Error handling GROUP_JOIN_REQUEST_SENT event:', error);
+    }
+  }
+
+  /**
+   * Escuchar evento de solicitud de unión aceptada
+   * Notifica al REQUESTER que fue aceptado en el grupo
+   */
+  @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_ACCEPTED)
+  async handleGroupJoinRequestAccepted(payload: GroupJoinRequestAcceptedPayload) {
+    try {
+      this.logger.log(
+        `Handling GROUP_JOIN_REQUEST_ACCEPTED event for request ${payload.id_request}`,
+      );
+
+      await this.prisma.notification.create({
+        data: {
+          id_user: payload.requester_id,
+          message: `Tu solicitud para unirte al grupo "${payload.group_name}" fue aceptada`,
+          is_read: false,
+          created_at: new Date(),
+          related_entity_id: payload.id_request,
+          notification_type: 'group_join_request_accepted',
+        },
+      });
+
+      this.logger.log(
+        `Created accepted notification for requester ${payload.requester_id}`,
+      );
+    } catch (error) {
+      this.logger.error('Error handling GROUP_JOIN_REQUEST_ACCEPTED event:', error);
+    }
+  }
+
+  /**
+   * Escuchar evento de solicitud de unión rechazada
+   * Notifica al REQUESTER que fue rechazado
+   */
+  @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_REJECTED)
+  async handleGroupJoinRequestRejected(payload: GroupJoinRequestRejectedPayload) {
+    try {
+      this.logger.log(
+        `Handling GROUP_JOIN_REQUEST_REJECTED event for request ${payload.id_request}`,
+      );
+
+      await this.prisma.notification.create({
+        data: {
+          id_user: payload.requester_id,
+          message: `Tu solicitud para unirte al grupo "${payload.group_name}" fue rechazada`,
+          is_read: false,
+          created_at: new Date(),
+          related_entity_id: payload.id_request,
+          notification_type: 'group_join_request_rejected',
+        },
+      });
+
+      this.logger.log(
+        `Created rejected notification for requester ${payload.requester_id}`,
+      );
+    } catch (error) {
+      this.logger.error('Error handling GROUP_JOIN_REQUEST_REJECTED event:', error);
     }
   }
 }
