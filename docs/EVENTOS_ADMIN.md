@@ -21,12 +21,12 @@ Para gestionar eventos, necesitas tener en tu base de datos:
 
 #### Rol: Estudiante (Usuario Normal)
 ```sql
-INSERT INTO role (name) VALUES ('Estudiante');
+INSERT INTO role (name) VALUES ('student');
 ```
 
 #### Rol: Administrador
 ```sql
-INSERT INTO role (name) VALUES ('Administrador');
+INSERT INTO role (name) VALUES ('admin');
 ```
 
 ### 3. Asignar Rol de Administrador a un Usuario
@@ -35,7 +35,7 @@ Para que un usuario pueda crear eventos, debe tener el rol de administrador:
 
 ```sql
 -- Obtener el ID del rol de administrador
-SELECT id_role FROM role WHERE name = 'Administrador';
+SELECT id_role FROM role WHERE name = 'superadmin';
 
 -- Actualizar el usuario para que sea administrador
 UPDATE "user" 
@@ -187,10 +187,10 @@ psql -h [HOST] -U [USER] -d [DATABASE] -f migrations/add_event_creator.sql
 
 ```sql
 -- Crear rol de estudiante
-INSERT INTO role (name) VALUES ('Estudiante');
+INSERT INTO role (name) VALUES ('student');
 
 -- Crear rol de administrador
-INSERT INTO role (name) VALUES ('Administrador');
+INSERT INTO role (name) VALUES ('admin');
 ```
 
 ### Paso 3: Asignar Rol de Administrador
@@ -274,7 +274,7 @@ VALUES ('Editar Eventos', 'Permite editar eventos académicos', 'events:update')
 -- Asignar permisos al rol de administrador
 INSERT INTO access (id_role, id_permission)
 SELECT 
-  (SELECT id_role FROM role WHERE name = 'Administrador'),
+  (SELECT id_role FROM role WHERE name = 'admin'),
   id_permission
 FROM permission
 WHERE claim LIKE 'events:%';

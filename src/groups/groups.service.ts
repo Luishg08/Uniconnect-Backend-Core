@@ -13,6 +13,23 @@ export class GroupsService {
 
   // 1. Crear grupo con validaciones y membresía automática
   async create(createGroupDto: CreateGroupDto) {
+    // Validar que el usuario tiene permisos para crear grupos (admin o superadmin)
+    const user = await this.prisma.user.findUnique({
+      where: { id_user: createGroupDto.owner_id },
+      include: { role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario con ID ${createGroupDto.owner_id} no encontrado.`);
+    }
+
+    // Solo admin y superadmin pueden crear grupos
+    if (!user.role?.name || !['admin', 'superadmin'].includes(user.role.name)) {
+      throw new ForbiddenException(
+        'No tienes permisos para crear grupos. Solo usuarios con rol "admin" o "superadmin" pueden crear grupos de estudio.',
+      );
+    }
+
     // Validar que el curso existe
     const course = await this.prisma.course.findUnique({
       where: { id_course: createGroupDto.id_course },
@@ -688,14 +705,35 @@ export class GroupsService {
   }
 
   async makeAdmin(groupId: number, memberId: number, userId: number) {
-    // Verificar que quien ejecuta es el owner
+    // Obtener información del usuario que ejecuta la acción
+    const requester = await this.prisma.user.findUnique({
+      where: { id_user: userId },
+      include: { role: true },
+    });
+
+    if (!requester) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Verificar que el grupo existe
     const group = await this.prisma.group.findUnique({
       where: { id_group: groupId },
       select: { owner_id: true },
     });
 
-    if (!group || group.owner_id !== userId) {
-      throw new ForbiddenException('No tienes permiso para dar roles de admin');
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    // Superadmin tiene bypass total
+    const isSuperAdmin = requester.role.name === 'superadmin';
+    const isGroupOwner = group.owner_id === userId;
+
+    // Solo el owner del grupo o un superadmin pueden dar roles de admin
+    if (!isSuperAdmin && !isGroupOwner) {
+      throw new ForbiddenException(
+        'No tienes permiso para dar roles de admin. Solo el creador del grupo o un superadmin pueden asignar administradores.',
+      );
     }
 
     const membership = await this.prisma.membership.findUnique({

@@ -21,7 +21,8 @@ export class AdminGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const userId = request.user?.userId;
+    // ⭐ FIX: Use 'sub' from JWT payload (standard JWT claim for user ID)
+    const userId = request.user?.userId || request.user?.sub;
 
     if (!userId) {
       throw new ForbiddenException('Usuario no autenticado');
@@ -39,9 +40,13 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('Usuario no encontrado');
     }
 
-    // Verificar si el rol es "Administrador" o similar
-    // Ajusta el nombre del rol según tu base de datos
-    const isAdmin = user.role.name?.toLowerCase().includes('admin');
+    // Superadmin tiene bypass total
+    if (user.role.name === 'superadmin') {
+      return true;
+    }
+
+    // Verificar si el rol es "admin"
+    const isAdmin = user.role.name === 'admin';
 
     if (!isAdmin) {
       throw new ForbiddenException(

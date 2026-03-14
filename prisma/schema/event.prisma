@@ -16,13 +16,16 @@ model event {
   location    String
   type        EventType
   created_by  Int       // ID del usuario que creó el evento
+  id_program  Int?      // ID de la carrera/programa (opcional para eventos globales de superadmin)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
   creator     user      @relation(fields: [created_by], references: [id_user])
+  program     program?  @relation(fields: [id_program], references: [id_program])
 
   @@index([date])
   @@index([type])
+  @@index([id_program])
   @@index([date, type])
   @@index([created_by])
   @@map("events")

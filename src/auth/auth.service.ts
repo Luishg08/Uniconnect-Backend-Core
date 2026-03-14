@@ -41,27 +41,35 @@ export class AuthService {
         let user = await this.usersService.findByEmail(googleUser.email);
 
         if (!user) {
-            const userRole = await this.rolesService.getUserRole();
-            if (!userRole) {
-                throw new Error('User role not found');
+            // Asignar rol "student" por defecto a usuarios nuevos
+            const studentRole = await this.rolesService.getStudentRole();
+            if (!studentRole) {
+                throw new Error('Rol "student" no encontrado en la base de datos. Ejecuta el seeder.');
             }
             user = await this.usersService.create({
                 email: googleUser.email,
                 full_name: googleUser.name,
                 picture: googleUser.picture,
-                id_role: userRole.id_role,
+                id_role: studentRole.id_role,
                 google_sub: googleUser.sub,
             })
         }
 
         const permissionsClaims = await this.permissionsService.getClaimsForRole(user.id_role);
 
-        const payload = { sub: user.id_user, permissions: permissionsClaims.map(p => p.claim) };
+        const payload = { 
+            sub: user.id_user, 
+            permissions: permissionsClaims.map(p => p.claim),
+            roleName: user.role?.name || 'student' // ⭐ FIX: Include roleName in JWT payload
+        };
                 
         const jwt = this.jwtService.sign(payload);
         return {
             access_token: jwt,
-            user,            
+            user: {
+                ...user,
+                role: user.role, // ⭐ Asegurar que role esté incluido
+            },            
         };
     }
 
@@ -88,12 +96,19 @@ export class AuthService {
         
         const permissionsClaims = await this.permissionsService.getClaimsForRole(user.id_role);
 
-        const payload = { sub: user.id_user, permissions: permissionsClaims.map(p => p.claim) };
+        const payload = { 
+            sub: user.id_user, 
+            permissions: permissionsClaims.map(p => p.claim),
+            roleName: user.role?.name || 'student' // ⭐ FIX: Include roleName in JWT payload
+        };
                 
         const jwt = this.jwtService.sign(payload);
         return {
             access_token: jwt,
-            user,            
+            user: {
+                ...user,
+                role: user.role, // ⭐ Asegurar que role esté incluido
+            },            
         };
     }
 
@@ -118,16 +133,17 @@ export class AuthService {
             let user = await this.usersService.findByEmail(userProfile.email);
 
             if (!user) {
-                const userRole = await this.rolesService.getUserRole();
-                if (!userRole) {
-                    throw new Error('User role not found');
+                // Asignar rol "student" por defecto a usuarios nuevos
+                const studentRole = await this.rolesService.getStudentRole();
+                if (!studentRole) {
+                    throw new Error('Rol "student" no encontrado en la base de datos. Ejecuta el seeder.');
                 }
                 
                 user = await this.usersService.create({
                     email: userProfile.email,
                     full_name: userProfile.name || userProfile.email,
                     picture: userProfile.picture || null,
-                    id_role: userRole.id_role,
+                    id_role: studentRole.id_role,
                     google_sub: userProfile.sub, // Auth0 user ID
                 });
             }
@@ -136,7 +152,8 @@ export class AuthService {
             const payload = { 
                 sub: user.id_user, 
                 permissions: permissionsClaims.map(p => p.claim),
-                auth0_sub: userProfile.sub 
+                auth0_sub: userProfile.sub,
+                roleName: user.role?.name || 'student' // ⭐ FIX: Include roleName in JWT payload
             };
             
             const jwt = this.jwtService.sign(payload);
@@ -150,6 +167,7 @@ export class AuthService {
                     user: {
                         id_user: user.id_user,
                         id_role: user.id_role,
+                        role: user.role, // ⭐ INCLUIR OBJETO ROLE COMPLETO
                         full_name: user.full_name,
                         email: user.email,
                         picture: user.picture,
@@ -299,7 +317,8 @@ export class AuthService {
             const payload = { 
                 sub: user.id_user, 
                 permissions: permissionsClaims.map(p => p.claim),
-                auth0_sub: user.google_sub 
+                auth0_sub: user.google_sub,
+                roleName: user.role?.name || 'student' // ⭐ FIX: Include roleName in JWT payload
             };
             
             const jwt = this.jwtService.sign(payload);
@@ -313,6 +332,7 @@ export class AuthService {
                     user: {
                         id_user: user.id_user,
                         id_role: user.id_role,
+                        role: user.role, // ⭐ INCLUIR OBJETO ROLE COMPLETO
                         full_name: user.full_name,
                         email: user.email,
                         picture: user.picture,

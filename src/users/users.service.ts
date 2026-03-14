@@ -11,23 +11,29 @@ export class UsersService {
   async findByEmail(email: string) {
     return (this.prisma.user as any).findFirst({
       where: { email },
+      include: { role: true }, // ⭐ INCLUIR RELACIÓN DE ROL
     });
   }
 
   async findById(id: number) {
     return (this.prisma.user as any).findUnique({
       where: { id_user: id },
+      include: { role: true }, // ⭐ INCLUIR RELACIÓN DE ROL
     });
   }
 
   async findByGoogleSub(googleSub: string) {
     return (this.prisma.user as any).findFirst({
       where: { google_sub: googleSub },
+      include: { role: true }, // ⭐ INCLUIR RELACIÓN DE ROL
     });
   }
 
   async create(data: any) {
-    return (this.prisma.user as any).create({ data });
+    return (this.prisma.user as any).create({ 
+      data,
+      include: { role: true }, // ⭐ INCLUIR RELACIÓN DE ROL
+    });
   }
 
   async findAll(filters: { search?: string; id_program?: number; id_course?: number, userId?: number } = {}) {

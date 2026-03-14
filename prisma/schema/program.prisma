@@ -3,4 +3,5 @@ model program {
   name       String?  @db.VarChar
   courses    course[]
   users      user[]
+  events     event[]
 }

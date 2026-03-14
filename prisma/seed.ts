@@ -23,23 +23,20 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('🌱 Iniciando seed de roles...');
 
-  // Check if 'user' role exists
-  const userRole = await prisma.role.findFirst({ where: { name: 'user' } });
-  
-  if (userRole) {
-    console.log(`✅ Rol 'user' ya existe en la base de datos (ID: ${userRole.id_role})`);
-    return;
+  // Definir los 3 roles oficiales del sistema
+  const officialRoles = ['student', 'admin', 'superadmin'];
+
+  for (const roleName of officialRoles) {
+    const role = await prisma.role.upsert({
+      where: { name: roleName },
+      update: {}, // No actualizar si ya existe
+      create: { name: roleName },
+    });
+
+    console.log(`✅ Rol '${role.name}' asegurado en la base de datos (ID: ${role.id_role})`);
   }
 
-  // Create 'user' role if it doesn't exist
-  const newRole = await prisma.role.create({
-    data: {
-      name: 'user',
-    },
-  });
-
-  console.log('✅ Rol creado exitosamente:');
-  console.log(`   - ${newRole.name} (ID: ${newRole.id_role})`);
+  console.log('✅ Sistema de roles estandarizado: student, admin, superadmin');
 }
 
 main()

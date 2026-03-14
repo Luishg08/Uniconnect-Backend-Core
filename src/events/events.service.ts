@@ -11,9 +11,46 @@ export class EventsService {
   async findAll(
     filters: EventFilters,
     pagination: PaginationParams,
+    userId?: number, // ⭐ NUEVO: userId para filtrado por carrera
   ): Promise<FENResponse<any[] | null>> {
     try {
-      const whereClause = this.buildWhereClause(filters);
+      let whereClause = this.buildWhereClause(filters);
+
+      // ⭐ NUEVO: Aplicar filtro de carrera si se proporciona userId
+      if (userId) {
+        const user = await this.prisma.user.findUnique({
+          where: { id_user: userId },
+          include: { role: true },
+        });
+
+        // Si el usuario no es superadmin, filtrar por su carrera
+        if (user && user.role.name !== 'superadmin') {
+          // Si el usuario no tiene carrera asignada, retornar array vacío
+          if (!user.id_program) {
+            return this.formatFENResponse(
+              true,
+              [],
+              null,
+              {
+                total: 0,
+                page: pagination.page,
+                pageSize: pagination.pageSize,
+                hasNextPage: false,
+                hasPreviousPage: false,
+                timestamp: new Date().toISOString(),
+              },
+            );
+          }
+
+          // Filtrar eventos por la carrera del usuario
+          whereClause = {
+            ...whereClause,
+            id_program: user.id_program,
+          };
+        }
+        // Si es superadmin, no se aplica filtro de carrera (ve todos)
+      }
+
       const skip = (pagination.page - 1) * pagination.pageSize;
 
       const [events, total] = await Promise.all([
@@ -24,6 +61,21 @@ export class EventsService {
           },
           skip,
           take: pagination.pageSize,
+          include: {
+            creator: {
+              select: {
+                id_user: true,
+                full_name: true,
+                picture: true,
+              },
+            },
+            program: {
+              select: {
+                id_program: true,
+                name: true,
+              },
+            },
+          },
         }),
         (this.prisma as any).event.count({
           where: whereClause,
@@ -128,11 +180,83 @@ export class EventsService {
 
   async create(createEventDto: any, userId: number) {
     try {
+      // 1. Obtener información completa del usuario con rol y programa
+      const user = await this.prisma.user.findUnique({
+        where: { id_user: userId },
+        include: { role: true },
+      });
+
+      if (!user) {
+        return this.formatFENResponse(
+          false,
+          null,
+          {
+            code: 'USER_NOT_FOUND',
+            message: 'Usuario no encontrado',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
+      // 2. Validar que el usuario tenga una carrera asignada (excepto superadmin)
+      if (!user.id_program && user.role.name !== 'superadmin') {
+        return this.formatFENResponse(
+          false,
+          null,
+          {
+            code: 'NO_PROGRAM_ASSIGNED',
+            message: 'Debes tener una carrera asignada para crear eventos. Completa tu perfil.',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
+      // 3. Validar permisos según rol
+      if (user.role.name === 'student') {
+        return this.formatFENResponse(
+          false,
+          null,
+          {
+            code: 'FORBIDDEN',
+            message: 'Los estudiantes no pueden crear eventos. Contacta a un administrador.',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
+      // 4. Determinar el program_id según el rol
+      // Admin: usa su propio id_program
+      // Superadmin: usa su id_program (puede ser null para eventos globales)
+      const programId = user.id_program;
+
+      // 5. Crear el evento con el program_id asignado automáticamente
       const event = await (this.prisma as any).event.create({
         data: {
           ...createEventDto,
           date: new Date(createEventDto.date),
           created_by: userId,
+          id_program: programId, // ⭐ Asignación automática desde el perfil del usuario
         },
         include: {
           creator: {
@@ -140,6 +264,12 @@ export class EventsService {
               id_user: true,
               full_name: true,
               email: true,
+            },
+          },
+          program: {
+            select: {
+              id_program: true,
+              name: true,
             },
           },
         },
@@ -318,7 +448,7 @@ export class EventsService {
     }
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: number) {
     try {
       const event = await (this.prisma as any).event.findUnique({
         where: { id },
@@ -328,6 +458,12 @@ export class EventsService {
               id_user: true,
               full_name: true,
               email: true,
+            },
+          },
+          program: {
+            select: {
+              id_program: true,
+              name: true,
             },
           },
         },
@@ -350,6 +486,36 @@ export class EventsService {
             timestamp: new Date().toISOString(),
           },
         );
+      }
+
+      // ⭐ NUEVO: Validar acceso por carrera si se proporciona userId
+      if (userId) {
+        const user = await this.prisma.user.findUnique({
+          where: { id_user: userId },
+          include: { role: true },
+        });
+
+        // Si no es superadmin, validar que el evento sea de su carrera
+        if (user && user.role.name !== 'superadmin') {
+          if (event.id_program !== user.id_program) {
+            return this.formatFENResponse(
+              false,
+              null,
+              {
+                code: 'FORBIDDEN',
+                message: 'No tienes acceso a este evento',
+              },
+              {
+                total: 0,
+                page: 1,
+                pageSize: 1,
+                hasNextPage: false,
+                hasPreviousPage: false,
+                timestamp: new Date().toISOString(),
+              },
+            );
+          }
+        }
       }
 
       return this.formatFENResponse(

@@ -12,12 +12,12 @@ import { UpdateEventDto } from './dto/update-event.dto';
 
 @ApiTags('events')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('events')
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get()
+  @UseGuards(JwtAuthGuard) // ⭐ Solo requiere autenticación, no admin
   @ApiOperation({ summary: 'Consultar eventos académicos con filtros opcionales' })
   @ApiQuery({ name: 'date', required: false, description: 'Fecha exacta en formato ISO 8601 (YYYY-MM-DD)' })
   @ApiQuery({ name: 'type', required: false, enum: EventType, description: 'Tipo de evento' })
@@ -27,6 +27,7 @@ export class EventsController {
   @ApiQuery({ name: 'pageSize', required: false, type: Number, description: 'Tamaño de página (default: 20)' })
   async findAll(
     @Query() queryParams: EventFilters & { page?: string; pageSize?: string },
+    @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
   ) {
     const { page = '1', pageSize = '20', ...filters } = queryParams;
     const pageNum = parseInt(page, 10) || 1;
@@ -35,37 +36,45 @@ export class EventsController {
     return this.eventsService.findAll(
       filters,
       { page: pageNum, pageSize: pageSizeNum },
+      userId, // ⭐ NUEVO: Pasar userId para filtrado por carrera
     );
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard) // ⭐ Solo requiere autenticación, no admin
   @ApiOperation({ summary: 'Obtener un evento por ID' })
-  async findOne(@Param('id') id: string) {
-    return this.eventsService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
+  ) {
+    return this.eventsService.findOne(id, userId); // ⭐ NUEVO: Pasar userId para validación de acceso
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, AdminGuard) // ⭐ Requiere autenticación Y ser admin
   @AdminOnly()
   @ApiOperation({ summary: 'Crear un nuevo evento (Solo administradores)' })
   async create(
     @Body() createEventDto: CreateEventDto,
-    @GetClaim('userId') userId: number,
+    @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
   ) {
     return this.eventsService.create(createEventDto, userId);
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard) // ⭐ Requiere autenticación Y ser admin
   @AdminOnly()
   @ApiOperation({ summary: 'Actualizar un evento existente (Solo administradores)' })
   async update(
     @Param('id') id: string,
     @Body() updateEventDto: UpdateEventDto,
-    @GetClaim('userId') userId: number,
+    @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
   ) {
     return this.eventsService.update(id, updateEventDto, userId);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard) // ⭐ Requiere autenticación Y ser admin
   @AdminOnly()
   @ApiOperation({ summary: 'Eliminar un evento (Solo administradores)' })
   async remove(@Param('id') id: string) {
