@@ -351,89 +351,44 @@ export class GroupsService {
    * 3. Si no existe, crea uno nuevo con ambos usuarios como miembros
    */
   async findOrCreateDirectMessage(userId1: number, userId2: number) {
-    if (userId1 === userId2) {
-      throw new ForbiddenException('No puedes crear un chat privado contigo mismo');
-    }
+      if (userId1 === userId2) {
+        throw new ForbiddenException('No puedes crear un chat privado contigo mismo');
+      }
 
-    // Validar que ambos usuarios existan
-    const user1 = await this.prisma.user.findUnique({ where: { id_user: userId1 } });
-    const user2 = await this.prisma.user.findUnique({ where: { id_user: userId2 } });
+      // Validar que ambos usuarios existan
+      const user1 = await this.prisma.user.findUnique({ where: { id_user: userId1 } });
+      const user2 = await this.prisma.user.findUnique({ where: { id_user: userId2 } });
 
-    if (!user1 || !user2) {
-      throw new NotFoundException('Uno o ambos usuarios no existen');
-    }
+      if (!user1 || !user2) {
+        throw new NotFoundException('Uno o ambos usuarios no existen');
+      }
 
-    // Buscar si ya existe un chat privado entre estos dos usuarios
-    const existingDirectMessage = await this.prisma.group.findFirst({
-      where: {
-        is_direct_message: true,
-        memberships: {
-          every: {
-            id_user: { in: [userId1, userId2] },
-          },
+      // NUEVA VALIDACIÓN: Verificar conexión aceptada
+      const connection = await this.prisma.connection.findFirst({
+        where: {
+          OR: [
+            { requester_id: userId1, adressee_id: userId2, status: 'accepted' },
+            { requester_id: userId2, adressee_id: userId1, status: 'accepted' },
+          ],
         },
-      },
-      include: {
-        memberships: {
-          include: {
-            user: {
-              select: {
-                id_user: true,
-                full_name: true,
-                email: true,
-                picture: true,
-              },
+      });
+
+      if (!connection) {
+        throw new ForbiddenException(
+          'Solo puedes crear chats privados con usuarios que sean tus conexiones aceptadas'
+        );
+      }
+
+      // Buscar si ya existe un chat privado entre estos dos usuarios
+      const existingDirectMessage = await this.prisma.group.findFirst({
+        where: {
+          is_direct_message: true,
+          memberships: {
+            every: {
+              id_user: { in: [userId1, userId2] },
             },
           },
         },
-      },
-    });
-
-    if (existingDirectMessage) {
-      return {
-        success: true,
-        isNew: false,
-        group: existingDirectMessage,
-      };
-    }
-
-    // Si no existe, crear uno nuevo
-    try {
-      const newDirectMessage = await this.prisma.$transaction(async (tx) => {
-        // Crear el grupo como chat privado
-        const group = await tx.group.create({
-          data: {
-            name: `Direct Message: ${user1.full_name} & ${user2.full_name}`,
-            is_direct_message: true,
-            // No asignar curso ni owner para chats privados
-          },
-        });
-
-        // Agregar a ambos usuarios como miembros (no admin)
-        await tx.membership.create({
-          data: {
-            id_user: userId1,
-            id_group: group.id_group,
-            is_admin: false,
-            joined_at: new Date(),
-          },
-        });
-
-        await tx.membership.create({
-          data: {
-            id_user: userId2,
-            id_group: group.id_group,
-            is_admin: false,
-            joined_at: new Date(),
-          },
-        });
-
-        return group;
-      });
-
-      // Retornar con los datos de membresías
-      const groupWithMembers = await this.prisma.group.findUnique({
-        where: { id_group: newDirectMessage.id_group },
         include: {
           memberships: {
             include: {
@@ -450,17 +405,79 @@ export class GroupsService {
         },
       });
 
-      return {
-        success: true,
-        isNew: true,
-        group: groupWithMembers,
-      };
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Error al crear el chat privado: ' + error.message,
-      );
+      if (existingDirectMessage) {
+        return {
+          success: true,
+          isNew: false,
+          group: existingDirectMessage,
+        };
+      }
+
+      // Si no existe, crear uno nuevo
+      try {
+        const newDirectMessage = await this.prisma.$transaction(async (tx) => {
+          // Crear el grupo como chat privado
+          const group = await tx.group.create({
+            data: {
+              name: `Direct Message: ${user1.full_name} & ${user2.full_name}`,
+              is_direct_message: true,
+              // No asignar curso ni owner para chats privados
+            },
+          });
+
+          // Agregar a ambos usuarios como miembros (no admin)
+          await tx.membership.create({
+            data: {
+              id_user: userId1,
+              id_group: group.id_group,
+              is_admin: false,
+              joined_at: new Date(),
+            },
+          });
+
+          await tx.membership.create({
+            data: {
+              id_user: userId2,
+              id_group: group.id_group,
+              is_admin: false,
+              joined_at: new Date(),
+            },
+          });
+
+          return group;
+        });
+
+        // Retornar con los datos de membresías
+        const groupWithMembers = await this.prisma.group.findUnique({
+          where: { id_group: newDirectMessage.id_group },
+          include: {
+            memberships: {
+              include: {
+                user: {
+                  select: {
+                    id_user: true,
+                    full_name: true,
+                    email: true,
+                    picture: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        return {
+          success: true,
+          isNew: true,
+          group: groupWithMembers,
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+        throw new InternalServerErrorException(
+          'Error al crear el chat privado: ' + errorMessage,
+        );
+      }
     }
-  }
 
   // =====================================================
   // GESTIÓN DE PARTICIPANTES - SOLICITUDES DE ACCESO
@@ -617,7 +634,7 @@ export class GroupsService {
     this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_ACCEPTED, {
       id_request: requestId,
       id_group: groupId,
-      group_name: (updatedRequest as any).group?.name ?? 'Grupo',
+      group_name: updatedRequest.group?.name ?? 'Grupo',
       requester_id: request.requester_id,
       requester_name: updatedRequest.requester?.full_name ?? 'Usuario',
       responded_at: new Date(),
@@ -662,7 +679,7 @@ export class GroupsService {
     this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_REJECTED, {
       id_request: requestId,
       id_group: groupId,
-      group_name: (rejectedRequest as any).group?.name ?? 'Grupo',
+      group_name: rejectedRequest.group?.name ?? 'Grupo',
       requester_id: request.requester_id,
       responded_at: new Date(),
     });
@@ -975,5 +992,39 @@ export class GroupsService {
       canInvite: isOwner,
       canManageMembers: isOwner,
     };
+  }
+
+  /**
+   * Obtener detalle de cualquier grupo (incluyendo chats privados)
+   * Para uso interno cuando se necesita acceder a chats privados
+   */
+  async findAnyGroup(id: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: id },
+      include: {
+        course: true,
+        owner: {
+          select: { full_name: true, email: true }
+        },
+        memberships: {
+          include: { 
+            user: { 
+              select: { 
+                id_user: true,
+                full_name: true, 
+                picture: true,
+                email: true,
+              } 
+            } 
+          }
+        }
+      }
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Grupo con ID ${id} no encontrado`);
+    }
+
+    return group;
   }
 }

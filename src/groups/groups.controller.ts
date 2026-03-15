@@ -49,17 +49,17 @@ export class GroupsController {
   }
 
   @Post('direct-message/:userId2')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Obtener o crear un chat privado entre dos usuarios' })
-  @ApiResponse({ status: 200, description: 'Chat privado encontrado o creado exitosamente.' })
-  @ApiResponse({ status: 400, description: 'No puedes chatear contigo mismo.' })
-  @ApiResponse({ status: 404, description: 'Uno o ambos usuarios no existen.' })
-  findOrCreateDirectMessage(
-    @GetClaim('sub') userId1: number,
-    @Param('userId2', ParseIntPipe) userId2: number,
-  ) {
-    return this.groupsService.findOrCreateDirectMessage(userId1, userId2);
-  }
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Crear o encontrar chat privado con otro usuario' })
+    @ApiResponse({ status: 200, description: 'Chat privado creado o encontrado.' })
+    @ApiResponse({ status: 403, description: 'No hay conexión aceptada entre los usuarios.' })
+    @ApiResponse({ status: 404, description: 'Usuario no encontrado.' })
+    findOrCreateDirectMessage(
+      @GetClaim('sub') userId1: number,
+      @Param('userId2', ParseIntPipe) userId2: number,
+    ) {
+      return this.groupsService.findOrCreateDirectMessage(userId1, userId2);
+    }
 
   @Get('direct-messages')
   @UseGuards(JwtAuthGuard)
