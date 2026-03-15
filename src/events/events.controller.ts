@@ -82,10 +82,13 @@ export class EventsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, AdminGuard) // ⭐ Requiere autenticación Y ser admin
-  @AdminOnly()
-  @ApiOperation({ summary: 'Eliminar un evento (Solo administradores)' })
-  async remove(@Param('id') id: string) {
-    return this.eventsService.remove(id);
+  @UseGuards(JwtAuthGuard) // ⭐ Solo requiere autenticación (validación de propiedad en service)
+  @ApiOperation({ summary: 'Eliminar un evento propio (creador o superadmin)' })
+  async deleteOwn(
+    @Param('id') id: string,
+    @GetClaim('sub') userId: number,
+    @GetClaim('roleName') userRole: string,
+  ) {
+    return this.eventsService.deleteOwn(id, userId, userRole);
   }
 }

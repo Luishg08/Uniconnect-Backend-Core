@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventFilters } from './dto/event-filters.dto';
 import { PaginationParams } from './dto/pagination.dto';
 import { FENResponse } from './interfaces/fen-response.interface';
+import { DeleteEventResponse } from './interfaces/delete-event-response.interface';
+import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
 
 @Injectable()
 export class EventsService {
@@ -179,7 +182,7 @@ export class EventsService {
   // GESTIÓN DE EVENTOS (Solo administradores)
   // =====================================================
 
-  async create(createEventDto: any, userId: number) {
+  async create(createEventDto: CreateEventDto, userId: number): Promise<FENResponse<any>> {
     try {
       // ⭐ DIAGNOSTIC: Log incoming request
       console.log('🔍 [EventsService.create] Incoming request:', {
@@ -346,7 +349,7 @@ export class EventsService {
     }
   }
 
-  async update(id: string, updateEventDto: any, userId: number, userRole: string) {
+  async update(id: string, updateEventDto: UpdateEventDto, userId: number, userRole: string): Promise<FENResponse<any>> {
     try {
       const existingEvent = await (this.prisma as any).event.findUnique({
         where: { id },
@@ -442,14 +445,20 @@ export class EventsService {
     }
   }
 
-  async remove(id: string) {
+  async deleteOwn(
+    id: string,
+    userId: number,
+    userRole: string,
+  ): Promise<FENResponse<DeleteEventResponse>> {
     try {
+      // 1. Buscar el evento por ID
       const existingEvent = await (this.prisma as any).event.findUnique({
         where: { id },
       });
 
+      // 2. Validar que el evento existe
       if (!existingEvent) {
-        return this.formatFENResponse(
+        return this.formatFENResponse<DeleteEventResponse>(
           false,
           null,
           {
@@ -467,13 +476,38 @@ export class EventsService {
         );
       }
 
+      // 3. Validar propiedad del evento
+      const isSuperadmin = userRole === 'superadmin';
+      const isOwner = existingEvent.created_by === userId;
+
+      if (!isSuperadmin && !isOwner) {
+        return this.formatFENResponse<DeleteEventResponse>(
+          false,
+          null,
+          {
+            code: 'FORBIDDEN',
+            message: 'Solo puedes eliminar tus propios eventos',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
+      // 4. Eliminar el evento
       await (this.prisma as any).event.delete({
         where: { id },
       });
 
-      return this.formatFENResponse(
+      // 5. Retornar respuesta exitosa
+      return this.formatFENResponse<DeleteEventResponse>(
         true,
-        { message: 'Evento eliminado exitosamente' },
+        { deleted: true, message: 'Evento eliminado exitosamente' },
         null,
         {
           total: 0,
@@ -485,7 +519,7 @@ export class EventsService {
         },
       );
     } catch (error) {
-      return this.formatFENResponse(
+      return this.formatFENResponse<DeleteEventResponse>(
         false,
         null,
         {
