@@ -16,7 +16,7 @@ export class GroupsService {
 
   // 1. Crear grupo con validaciones y membresía automática
   async create(createGroupDto: CreateGroupDto) {
-    // Validar que el usuario tiene permisos para crear grupos (admin o superadmin)
+    // Validar que el usuario existe
     const user = await this.prisma.user.findUnique({
       where: { id_user: createGroupDto.owner_id },
       include: { role: true },
@@ -24,13 +24,6 @@ export class GroupsService {
 
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${createGroupDto.owner_id} no encontrado.`);
-    }
-
-    // Solo admin y superadmin pueden crear grupos
-    if (!user.role?.name || !['admin', 'superadmin'].includes(user.role.name)) {
-      throw new ForbiddenException(
-        'No tienes permisos para crear grupos. Solo usuarios con rol "admin" o "superadmin" pueden crear grupos de estudio.',
-      );
     }
 
     // Validar que el curso existe

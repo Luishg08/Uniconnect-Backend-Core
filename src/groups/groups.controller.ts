@@ -5,12 +5,15 @@ import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { GroupOwnershipGuard } from './guards/group-ownership.guard';
+import { CanCreateGroupGuard } from './guards/can-create-group.guard';
 
 @ApiTags('groups') 
 @Controller('groups')
 export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
+  @UseGuards(JwtAuthGuard, CanCreateGroupGuard)
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo grupo de estudio y asignar owner como admin' })
   @ApiResponse({ status: 201, description: 'El grupo y la membresía han sido creados.' })
@@ -84,7 +87,7 @@ export class GroupsController {
     return this.groupsService.findOne(id); 
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un grupo (Solo permitido al owner)' })
   @ApiQuery({ name: 'userId', description: 'ID del usuario autenticado para verificar propiedad' })
@@ -97,7 +100,7 @@ export class GroupsController {
     return this.groupsService.remove(id, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar información del grupo (Solo owner)' })
   @ApiQuery({ name: 'userId', description: 'ID del usuario para verificar propiedad' })
@@ -132,7 +135,7 @@ export class GroupsController {
     return this.groupsService.requestGroupAccess(userId, groupId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Get(':id/join-requests')
   @ApiOperation({
     summary: 'HU: Listar solicitudes pendientes (Solo owner)',
@@ -147,7 +150,7 @@ export class GroupsController {
     return this.groupsService.getPendingJoinRequests(groupId, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Patch(':id/join-requests/:requestId/accept')
   @ApiOperation({
     summary: 'HU: Aceptar solicitud de acceso (Solo owner)',
@@ -164,7 +167,7 @@ export class GroupsController {
     return this.groupsService.acceptJoinRequest(requestId, groupId, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Patch(':id/join-requests/:requestId/reject')
   @ApiOperation({
     summary: 'HU: Rechazar solicitud de acceso (Solo owner)',
@@ -212,7 +215,7 @@ export class GroupsController {
     return this.groupsService.leaveGroup(groupId, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Delete(':id/members/:memberId')
   @ApiOperation({
     summary: 'HU: Sacar miembro del grupo (Solo owner)',
@@ -229,7 +232,7 @@ export class GroupsController {
     return this.groupsService.removeMember(groupId, memberId, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Patch(':id/members/:memberId/make-admin')
   @ApiOperation({
     summary: 'HU: Dar rol de admin a miembro (Solo owner)',
@@ -246,7 +249,7 @@ export class GroupsController {
     return this.groupsService.makeAdmin(groupId, memberId, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
   @Post(':id/invite/:inviteeId')
   @ApiOperation({
     summary: 'HU: Invitar usuario (Solo owner)',

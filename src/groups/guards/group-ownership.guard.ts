@@ -8,7 +8,9 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
- * Guard que valida que el usuario sea el owner del grupo
+ * Guard que valida que el usuario sea el owner del grupo.
+ * IMPORTANTE: No incluye bypass de superadmin para mantener integridad de datos.
+ * Solo el owner real puede realizar operaciones de ownership.
  */
 @Injectable()
 export class GroupOwnershipGuard implements CanActivate {
@@ -36,6 +38,7 @@ export class GroupOwnershipGuard implements CanActivate {
       throw new BadRequestException('Grupo no encontrado.');
     }
 
+    // Validación estricta: solo el owner puede realizar esta acción
     if (group.owner_id !== userId) {
       throw new ForbiddenException(
         'No tienes permiso para realizar esta acción. Solo el propietario del grupo puede hacerlo.',

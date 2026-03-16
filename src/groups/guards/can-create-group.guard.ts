@@ -2,8 +2,8 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
- * Guard para validar que solo usuarios con rol "admin" o "superadmin"
- * puedan crear grupos de estudio.
+ * Guard para validar que usuarios autenticados puedan crear grupos de estudio.
+ * Las validaciones de negocio (inscripción, límites) se manejan en el servicio.
  */
 @Injectable()
 export class CanCreateGroupGuard implements CanActivate {
@@ -26,19 +26,13 @@ export class CanCreateGroupGuard implements CanActivate {
       throw new ForbiddenException('Usuario no encontrado');
     }
 
-    // Superadmin tiene bypass total
+    // Superadmin mantiene bypass total para propósitos administrativos
     if (user.role.name === 'superadmin') {
       return true;
     }
 
-    // Validar que sea admin
-    if (user.role.name === 'admin') {
-      return true;
-    }
-
-    // Rol "student" no puede crear grupos
-    throw new ForbiddenException(
-      'No tienes permisos para crear grupos. Solo usuarios con rol "admin" o "superadmin" pueden crear grupos de estudio.',
-    );
+    // Todos los usuarios autenticados pueden crear grupos
+    // Las validaciones de inscripción y límites se manejan en el servicio
+    return true;
   }
 }
