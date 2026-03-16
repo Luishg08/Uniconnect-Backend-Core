@@ -484,71 +484,111 @@ export class GroupsService {
   // =====================================================
 
   async requestGroupAccess(userId: number, groupId: number) {
-    const group = await this.prisma.group.findUnique({
-      where: { id_group: groupId },
-      select: { id_group: true, is_direct_message: true, owner_id: true, name: true },
-    });
+      const group = await this.prisma.group.findUnique({
+        where: { id_group: groupId },
+        select: { id_group: true, is_direct_message: true, owner_id: true, name: true },
+      });
 
-    if (!group) {
-      throw new NotFoundException('Grupo no encontrado');
+      if (!group) {
+        throw new NotFoundException('Grupo no encontrado');
+      }
+
+      if (group.is_direct_message) {
+        throw new BadRequestException('No puedes solicitar acceso a un chat directo');
+      }
+
+      // Verificar que el usuario no es ya miembro
+      const existingMembership = await this.prisma.membership.findUnique({
+        where: { id_user_id_group: { id_user: userId, id_group: groupId } },
+      });
+
+      if (existingMembership) {
+        throw new BadRequestException('Ya eres miembro de este grupo');
+      }
+
+      // Crear o actualizar solicitud con manejo defensivo de P2002
+      try {
+        const joinRequest = await this.prisma.group_join_request.upsert({
+          where: { id_group_requester_id: { id_group: groupId, requester_id: userId } },
+          create: {
+            id_group: groupId,
+            requester_id: userId,
+            status: 'pending',
+          },
+          update: {
+            status: 'pending',
+            requested_at: new Date(),
+            responded_at: null,
+          },
+          include: {
+            requester: {
+              select: { id_user: true, full_name: true, picture: true, email: true },
+            },
+          },
+        });
+
+        // Emitir evento para notificar al owner del grupo
+        this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
+          id_request: joinRequest.id_request,
+          id_group: groupId,
+          group_name: group.name ?? 'Grupo',
+          owner_id: group.owner_id!,
+          requester_id: userId,
+          requester_name: joinRequest.requester?.full_name ?? 'Usuario',
+          requester_picture: joinRequest.requester?.picture ?? null,
+          requested_at: joinRequest.requested_at,
+        });
+
+        return joinRequest;
+      } catch (error: unknown) {
+        // Manejo defensivo de error P2002 (unique constraint violation)
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+          // Buscar registro conflictivo y actualizarlo directamente
+          const conflicting = await this.prisma.group_join_request.findUnique({
+            where: {
+              id_group_requester_id: {
+                id_group: groupId,
+                requester_id: userId,
+              },
+            },
+          });
+
+          if (conflicting) {
+            // Actualizar directamente a pending
+            const updated = await this.prisma.group_join_request.update({
+              where: { id_request: conflicting.id_request },
+              data: {
+                status: 'pending',
+                requested_at: new Date(),
+                responded_at: null,
+              },
+              include: {
+                requester: {
+                  select: { id_user: true, full_name: true, picture: true, email: true },
+                },
+              },
+            });
+
+            // Emitir evento
+            this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
+              id_request: updated.id_request,
+              id_group: groupId,
+              group_name: group.name ?? 'Grupo',
+              owner_id: group.owner_id!,
+              requester_id: userId,
+              requester_name: updated.requester?.full_name ?? 'Usuario',
+              requester_picture: updated.requester?.picture ?? null,
+              requested_at: updated.requested_at,
+            });
+
+            return updated;
+          }
+        }
+
+        // Re-lanzar otros errores
+        throw error;
+      }
     }
-
-    if (group.is_direct_message) {
-      throw new BadRequestException('No puedes solicitar acceso a un chat directo');
-    }
-
-    // Verificar que el usuario no es ya miembro
-    const existingMembership = await this.prisma.membership.findUnique({
-      where: { id_user_id_group: { id_user: userId, id_group: groupId } },
-    });
-
-    if (existingMembership) {
-      throw new BadRequestException('Ya eres miembro de este grupo');
-    }
-
-    // Verificar que no existe solicitud pendiente
-    const existingRequest = await this.prisma.group_join_request.findUnique({
-      where: { id_group_requester_id: { id_group: groupId, requester_id: userId } },
-    });
-
-    if (existingRequest && existingRequest.status === 'pending') {
-      throw new BadRequestException('Ya tienes una solicitud pendiente para este grupo');
-    }
-
-    // Crear o actualizar solicitud
-    const joinRequest = await this.prisma.group_join_request.upsert({
-      where: { id_group_requester_id: { id_group: groupId, requester_id: userId } },
-      create: {
-        id_group: groupId,
-        requester_id: userId,
-        status: 'pending',
-      },
-      update: {
-        status: 'pending',
-        requested_at: new Date(),
-        responded_at: null,
-      },
-      include: {
-        requester: {
-          select: { id_user: true, full_name: true, picture: true, email: true },
-        },
-      },
-    });
-
-    // Emitir evento para notificar al owner del grupo
-    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
-      id_request: joinRequest.id_request,
-      id_group: groupId,
-      group_name: group.name ?? 'Grupo',
-      owner_id: group.owner_id!,
-      requester_id: userId,
-      requester_name: joinRequest.requester?.full_name ?? 'Usuario',
-      requester_picture: joinRequest.requester?.picture ?? null,
-      requested_at: joinRequest.requested_at,
-    });
-
-    return joinRequest;
-  }
 
   async getPendingJoinRequests(groupId: number, userId: number) {
     // Verificar que el usuario es el owner del grupo

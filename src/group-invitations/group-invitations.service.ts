@@ -23,72 +23,106 @@ export class GroupInvitationsService {
    * Enviar una invitación a un grupo
    */
   async sendInvitation(createDto: CreateGroupInvitationDto) {
-    // 1. Validar que el inviter es admin del grupo
-    await this.groupValidator.validateAdminInvitation(
-      createDto.inviter_id,
-      createDto.id_group,
-    );
+      // 1. Validar que el inviter es admin del grupo
+      await this.groupValidator.validateAdminInvitation(
+        createDto.inviter_id,
+        createDto.id_group,
+      );
 
-    // 2. Validar que el invitee tiene la materia inscrita
-    await this.groupValidator.validateInviteeEnrollment(
-      createDto.invitee_id,
-      createDto.id_group,
-    );
+      // 2. Validar que el invitee tiene la materia inscrita
+      await this.groupValidator.validateInviteeEnrollment(
+        createDto.invitee_id,
+        createDto.id_group,
+      );
 
-    // 3. Validar que el invitee no es ya miembro del grupo
-    await this.groupValidator.validateNotAlreadyMember(
-      createDto.invitee_id,
-      createDto.id_group,
-    );
+      // 3. Validar que el invitee no es ya miembro del grupo
+      await this.groupValidator.validateNotAlreadyMember(
+        createDto.invitee_id,
+        createDto.id_group,
+      );
 
-    // 4. Validar que no hay invitación pendiente
-    await this.groupValidator.validateNoPendingInvitation(
-      createDto.invitee_id,
-      createDto.id_group,
-    );
-
-    // 5. Crear la invitación
-    const invitation = await this.prisma.group_invitation.create({
-      data: {
-        id_group: createDto.id_group,
-        inviter_id: createDto.inviter_id,
-        invitee_id: createDto.invitee_id,
-        status: 'pending',
-      },
-      include: {
-        group: {
-          select: {
-            id_group: true,
-            name: true,
-            course: { select: { name: true } },
+      // 4. Crear o actualizar la invitación con manejo defensivo de P2002
+      try {
+        const invitation = await this.prisma.group_invitation.upsert({
+          where: {
+            id_group_invitee_id: {
+              id_group: createDto.id_group,
+              invitee_id: createDto.invitee_id,
+            },
           },
-        },
-        inviter: {
-          select: {
-            id_user: true,
-            full_name: true,
-            picture: true,
+          update: {
+            status: 'pending',
+            invited_at: new Date(),
+            responded_at: null,
+            inviter_id: createDto.inviter_id,
           },
-        },
-      },
-    });
+          create: {
+            id_group: createDto.id_group,
+            inviter_id: createDto.inviter_id,
+            invitee_id: createDto.invitee_id,
+            status: 'pending',
+          },
+          include: {
+            group: {
+              select: {
+                id_group: true,
+                name: true,
+                course: { select: { name: true } },
+              },
+            },
+            inviter: {
+              select: {
+                id_user: true,
+                full_name: true,
+                picture: true,
+              },
+            },
+          },
+        });
 
-    // 6. Emitir evento de invitación enviada
-    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_SENT, {
-      id_invitation: invitation.id_invitation,
-      id_group: invitation.id_group,
-      group_name: invitation.group?.name || 'Grupo',
-      inviter_id: invitation.inviter_id,
-      inviter_name: invitation.inviter?.full_name || 'Usuario',
-      invitee_id: invitation.invitee_id,
-      invited_at: invitation.invited_at,
-    });
+        // 5. Emitir evento de invitación enviada
+        this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_SENT, {
+          id_invitation: invitation.id_invitation,
+          id_group: invitation.id_group,
+          group_name: invitation.group?.name || 'Grupo',
+          inviter_id: invitation.inviter_id,
+          inviter_name: invitation.inviter?.full_name || 'Usuario',
+          invitee_id: invitation.invitee_id,
+          invited_at: invitation.invited_at,
+        });
 
-    return {
-      message: 'Invitación enviada exitosamente',
-      invitation,
-    };
-  }
+        return {
+          message: 'Invitación enviada exitosamente',
+          invitation,
+        };
+      } catch (error: unknown) {
+        // Manejo defensivo de error P2002 (unique constraint violation)
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+          // Buscar y eliminar registro conflictivo
+          const conflicting = await this.prisma.group_invitation.findUnique({
+            where: {
+              id_group_invitee_id: {
+                id_group: createDto.id_group,
+                invitee_id: createDto.invitee_id,
+              },
+            },
+          });
+
+          if (conflicting) {
+            // Eliminar registro huérfano y reintentar
+            await this.prisma.group_invitation.delete({
+              where: { id_invitation: conflicting.id_invitation },
+            });
+
+            // Reintentar operación recursivamente
+            return this.sendInvitation(createDto);
+          }
+        }
+
+        // Re-lanzar otros errores
+        throw error;
+      }
+    }
 
   /**
    * Obtener invitaciones pendientes del usuario
