@@ -33,6 +33,8 @@ export class MessagesService {
         id_user: message.membership.user.id_user,
         text_content: message.text_content || '',
         send_at: message.send_at,
+        sender_name: message.membership.user.full_name,
+        sender_picture: message.membership.user.picture || null,
       };
       this.eventEmitter.emit(MESSAGE_EVENTS.MESSAGE_SENT, payload);
     }
@@ -89,6 +91,8 @@ export class MessagesService {
         id_user: message.membership.user.id_user,
         text_content: message.text_content || '',
         edited_at: message.edited_at || new Date(),
+        sender_name: message.membership.user.full_name,
+        sender_picture: message.membership.user.picture || null,
       });
     }
 

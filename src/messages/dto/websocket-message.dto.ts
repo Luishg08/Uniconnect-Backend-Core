@@ -22,6 +22,9 @@ export class MessageEventDto {
 
   files?: FileDto[];
 
+  sender_name: string;
+  sender_picture: string | null;
+
   user: {
     id_user: number;
     full_name: string;

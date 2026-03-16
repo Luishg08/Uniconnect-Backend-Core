@@ -50,6 +50,8 @@ export interface MessageSentPayload {
   id_user: number;
   text_content: string;
   send_at: Date;
+  sender_name: string;
+  sender_picture: string | null;
 }
 
 export interface MessageEditedPayload {
@@ -58,6 +60,8 @@ export interface MessageEditedPayload {
   id_user: number;
   text_content: string;
   edited_at: Date;
+  sender_name: string;
+  sender_picture: string | null;
 }
 
 export interface MessageDeletedPayload {

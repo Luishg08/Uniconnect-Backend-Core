@@ -207,6 +207,8 @@ export class MessagesGateway
         send_at: sendAt,
         attachments: message.attachments || null,
         files: filesArray,
+        sender_name: message.membership.user.full_name,
+        sender_picture: message.membership.user.picture ?? null,
         user: {
           id_user: message.membership.user.id_user,
           full_name: message.membership.user.full_name!,
