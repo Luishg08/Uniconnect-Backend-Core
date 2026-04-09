@@ -198,59 +198,182 @@ export class GroupInvitationsService {
       );
     }
 
-    // 3. Validar que la invitación está pendiente
-    if (invitation.status !== 'pending') {
-      throw new BadRequestException(
-        'Esta invitación ya fue respondida anteriormente',
-      );
-    }
-
-    // 4. Actualizar el estado de la invitación
-    const updatedInvitation = await this.prisma.group_invitation.update({
-      where: { id_invitation: invitationId },
-      data: {
-        status: respondDto.status,
-        responded_at: new Date(),
+    // 3. FIX-15: Check if membership already exists (idempotency)
+    const existingMembership = await this.prisma.membership.findFirst({
+      where: {
+        id_user: userId,
+        id_group: invitation.id_group,
       },
     });
 
-    // 5. Si se aceptó, crear la membresía
+    console.log('[GroupInvitations Service] Membership existence check', {
+      invitationId,
+      userId,
+      groupId: invitation.id_group,
+      membershipExists: !!existingMembership,
+      invitationStatus: invitation.status,
+    });
+
+    // 3.1. If membership exists, return idempotent success
+    if (existingMembership) {
+      if (invitation.status === 'accepted') {
+        // Idempotent success - user is already a member
+        console.log('[GroupInvitations Service] Idempotent success - user already member', {
+          invitationId,
+          userId,
+          groupId: invitation.id_group,
+        });
+        return {
+          message: 'Ya eres miembro de este grupo',
+          invitation,
+        };
+      } else {
+        // Conflict - membership exists but invitation not accepted
+        console.log('[GroupInvitations Service] Inconsistent state detected', {
+          invitationId,
+          userId,
+          groupId: invitation.id_group,
+          invitationStatus: invitation.status,
+          membershipExists: true,
+        });
+        throw new BadRequestException(
+          'Estado inconsistente detectado: ya eres miembro pero la invitación no está aceptada',
+        );
+      }
+    }
+
+    // 4. Validar que la invitación está pendiente (with recovery for inconsistent state)
+    if (invitation.status !== 'pending') {
+      // FIX-15: Allow recovery if user is trying to accept and no membership exists
+      if (respondDto.status === 'accepted') {
+        console.warn('[GroupInvitations Service] Inconsistent state detected, attempting recovery', {
+          invitationId,
+          userId,
+          invitationStatus: invitation.status,
+          membershipExists: false,
+          note: 'Invitation has non-pending status but no membership - will attempt to create membership',
+        });
+        // Continue to create membership (recovery path)
+      } else {
+        // For rejection, don't allow recovery
+        throw new BadRequestException(
+          'Esta invitación ya fue respondida anteriormente',
+        );
+      }
+    }
+
+    // 5. FIX-15: Process acceptance with atomic transaction
     if (respondDto.status === 'accepted') {
-      const membership = await this.prisma.membership.create({
-        data: {
+      try {
+        console.log('[GroupInvitations Service] Starting atomic transaction for acceptance', {
+          invitationId,
+          userId,
+          groupId: invitation.id_group,
+        });
+
+        // Atomic transaction: both operations succeed or both fail
+        const [updatedInvitation, membership] = await this.prisma.$transaction([
+          // Operation 1: Update invitation status
+          this.prisma.group_invitation.update({
+            where: { id_invitation: invitationId },
+            data: {
+              status: 'accepted',
+              responded_at: new Date(),
+            },
+          }),
+          // Operation 2: Create membership
+          this.prisma.membership.create({
+            data: {
+              id_user: userId,
+              id_group: invitation.id_group,
+              is_admin: false,
+              joined_at: new Date(),
+            },
+            include: {
+              user: { select: { full_name: true } },
+            },
+          }),
+        ]);
+
+        console.log('[GroupInvitations Service] Atomic transaction completed successfully', {
+          invitationId,
+          userId,
+          groupId: invitation.id_group,
+          membershipId: membership.id_membership,
+        });
+
+        // Emitir evento de invitación aceptada
+        this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_ACCEPTED, {
+          id_invitation: invitationId,
+          id_group: invitation.id_group,
+          group_name: invitation.group?.name || 'Grupo',
+          invitee_id: userId,
+          invitee_name: membership.user?.full_name || 'Usuario',
+          accepted_at: new Date(),
+        });
+
+        // Emitir evento de usuario unido al grupo
+        this.eventEmitter.emit(MESSAGE_EVENTS.USER_JOINED_GROUP, {
           id_user: userId,
           id_group: invitation.id_group,
-          is_admin: false,
+          full_name: membership.user?.full_name || 'Usuario',
           joined_at: new Date(),
-        },
-        include: {
-          user: { select: { full_name: true } },
-        },
-      });
+        });
 
-      // Emitir evento de invitación aceptada
-      this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_ACCEPTED, {
-        id_invitation: invitationId,
-        id_group: invitation.id_group,
-        group_name: invitation.group?.name || 'Grupo',
-        invitee_id: userId,
-        invitee_name: membership.user?.full_name || 'Usuario',
-        accepted_at: new Date(),
-      });
+        return {
+          message: 'Invitación aceptada. Ahora eres miembro del grupo.',
+          invitation: updatedInvitation,
+        };
+      } catch (error: unknown) {
+        // FIX-15: Handle race condition (P2002 - unique constraint violation)
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+          console.log('[GroupInvitations Service] Race condition detected (P2002), checking membership', {
+            invitationId,
+            userId,
+            groupId: invitation.id_group,
+          });
 
-      // Emitir evento de usuario unido al grupo
-      this.eventEmitter.emit(MESSAGE_EVENTS.USER_JOINED_GROUP, {
-        id_user: userId,
-        id_group: invitation.id_group,
-        full_name: membership.user?.full_name || 'Usuario',
-        joined_at: new Date(),
-      });
+          // Check if membership was created by concurrent request
+          const membership = await this.prisma.membership.findFirst({
+            where: {
+              id_user: userId,
+              id_group: invitation.id_group,
+            },
+          });
 
-      return {
-        message: 'Invitación aceptada. Ahora eres miembro del grupo.',
-        invitation: updatedInvitation,
-      };
+          if (membership) {
+            // Idempotent success - membership was created by concurrent request
+            console.log('[GroupInvitations Service] Race condition resolved - membership exists', {
+              invitationId,
+              userId,
+              groupId: invitation.id_group,
+              membershipId: membership.id_membership,
+            });
+            return {
+              message: 'Ya eres miembro de este grupo',
+              invitation,
+            };
+          }
+        }
+
+        // Re-throw other errors
+        console.error('[GroupInvitations Service] Error in atomic transaction', {
+          invitationId,
+          userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        throw error;
+      }
     }
+
+    // 6. Process rejection (unchanged behavior)
+    const updatedInvitation = await this.prisma.group_invitation.update({
+      where: { id_invitation: invitationId },
+      data: {
+        status: 'rejected',
+        responded_at: new Date(),
+      },
+    });
 
     // Emitir evento de invitación rechazada
     this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_REJECTED, {
