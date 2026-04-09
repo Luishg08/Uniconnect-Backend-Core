@@ -25,8 +25,11 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod
 RUN pnpm add -D prisma@7.4.1
 
-# Copiar schema de Prisma y generar cliente
+# Copiar schema de Prisma (directorio) y config
 COPY prisma ./prisma
+COPY prisma.config.ts ./prisma.config.ts
+
+# Generar Prisma Client
 RUN npx prisma generate
 
 # Copiar código compilado
