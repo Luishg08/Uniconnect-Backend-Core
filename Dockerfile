@@ -20,13 +20,16 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma
 
 # Instalar dependencias de producción Y prisma para generar el cliente
 RUN pnpm install --prod
 RUN pnpm add -D prisma@7.4.1
+
+# Copiar schema de Prisma y generar cliente
+COPY prisma ./prisma
 RUN npx prisma generate
 
+# Copiar código compilado
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8007
