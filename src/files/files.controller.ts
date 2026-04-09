@@ -4,7 +4,6 @@ import { FilesService } from './files.service';
 import { MessagesGateway } from '../messages/messages.gateway';
 import { MessageRepository } from '../messages/message.repository';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { File } from 'multer';
 
 @Controller('files')
 export class FilesController {
@@ -27,7 +26,7 @@ export class FilesController {
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FilesInterceptor('files', 5))
   async uploadFiles(
-    @UploadedFiles() files: File[],
+    @UploadedFiles() files: Express.Multer.File[],
     @Body('id_group') id_group: string,
     @Body('id_message') id_message: string | undefined,
     @Req() req: any,

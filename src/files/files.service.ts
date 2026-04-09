@@ -3,7 +3,6 @@ import { S3Client, PutObjectCommand, HeadBucketCommand, GetObjectCommand } from 
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import * as multer from 'multer';
 
 @Injectable()
 export class FilesService {
@@ -52,7 +51,7 @@ export class FilesService {
    * para que los archivos aparezcan en el historial del chat.
    */
   async uploadGroupFiles(
-    files: multer.File[],
+    files: Express.Multer.File[],
     id_group: number,
     id_user: number,
     id_message?: number,
