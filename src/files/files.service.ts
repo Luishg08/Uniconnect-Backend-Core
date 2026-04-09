@@ -115,7 +115,9 @@ export class FilesService {
 
         await this.s3Client.send(command);
 
-        const fileUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${fileName}`;
+        // Codificar la Key en la URL para manejar caracteres especiales correctamente
+        const encodedFileName = encodeURIComponent(fileName).replace(/%2F/g, '/');
+        const fileUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${encodedFileName}`;
 
         return this.prisma.file.create({
           data: {
