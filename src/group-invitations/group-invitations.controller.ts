@@ -8,6 +8,7 @@ import {
   Delete,
   ParseIntPipe,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { GroupInvitationsService } from './group-invitations.service';
@@ -55,11 +56,49 @@ export class GroupInvitationsController {
     @GetClaim('sub') userId: number,
     @Body() respondDto: RespondGroupInvitationDto,
   ) {
-    return this.groupInvitationsService.respondToInvitation(
-      id,
+    // FIX-14: Defensive type conversion for JWT user ID
+    // JWT tokens may provide user IDs as strings, but Prisma expects integers
+    console.log('[GroupInvitations] respondToInvitation called', {
+      invitationId: id,
       userId,
+      userIdType: typeof userId,
       respondDto,
-    );
+    });
+
+    // Convert userId to number if it's a string
+    const numericUserId = typeof userId === 'string' 
+      ? parseInt(userId, 10) 
+      : userId;
+
+    // Validate conversion was successful
+    if (isNaN(numericUserId) || numericUserId <= 0) {
+      console.error('[GroupInvitations] Invalid user ID from JWT token', {
+        originalUserId: userId,
+        convertedUserId: numericUserId,
+      });
+      throw new BadRequestException('Invalid user ID from JWT token. Must be a positive integer.');
+    }
+
+    console.log('[GroupInvitations] User ID validated successfully', {
+      numericUserId,
+      type: typeof numericUserId,
+    });
+
+    try {
+      return this.groupInvitationsService.respondToInvitation(
+        id,
+        numericUserId,
+        respondDto,
+      );
+    } catch (error) {
+      console.error('[GroupInvitations] Error responding to invitation', {
+        invitationId: id,
+        userId: numericUserId,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
   }
 
   @UseGuards(JwtAuthGuard)
@@ -71,6 +110,41 @@ export class GroupInvitationsController {
     @Param('id', ParseIntPipe) id: number,
     @GetClaim('sub') userId: number,
   ) {
-    return this.groupInvitationsService.cancelInvitation(id, userId);
+    // FIX-14: Defensive type conversion for JWT user ID
+    console.log('[GroupInvitations] cancelInvitation called', {
+      invitationId: id,
+      userId,
+      userIdType: typeof userId,
+    });
+
+    // Convert userId to number if it's a string
+    const numericUserId = typeof userId === 'string' 
+      ? parseInt(userId, 10) 
+      : userId;
+
+    // Validate conversion was successful
+    if (isNaN(numericUserId) || numericUserId <= 0) {
+      console.error('[GroupInvitations] Invalid user ID from JWT token', {
+        originalUserId: userId,
+        convertedUserId: numericUserId,
+      });
+      throw new BadRequestException('Invalid user ID from JWT token. Must be a positive integer.');
+    }
+
+    console.log('[GroupInvitations] User ID validated successfully', {
+      numericUserId,
+      type: typeof numericUserId,
+    });
+
+    try {
+      return this.groupInvitationsService.cancelInvitation(id, numericUserId);
+    } catch (error) {
+      console.error('[GroupInvitations] Error canceling invitation', {
+        invitationId: id,
+        userId: numericUserId,
+        error: error.message,
+      });
+      throw error;
+    }
   }
 }

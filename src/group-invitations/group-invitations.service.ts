@@ -166,10 +166,25 @@ export class GroupInvitationsService {
     userId: number,
     respondDto: RespondGroupInvitationDto,
   ) {
+    // 0. Validación defensiva de tipo de userId
+    if (typeof userId !== 'number' || isNaN(userId) || userId <= 0) {
+      throw new BadRequestException('Invalid user ID. Must be a positive integer.');
+    }
+
     // 1. Buscar la invitación
     const invitation = await this.prisma.group_invitation.findUnique({
       where: { id_invitation: invitationId },
       include: { group: true },
+    });
+
+    console.log('[GroupInvitations Service] Validating invitation', {
+      invitationId,
+      userId,
+      invitation: invitation ? {
+        id_invitation: invitation.id_invitation,
+        invitee_id: invitation.invitee_id,
+        status: invitation.status,
+      } : null,
     });
 
     if (!invitation) {
