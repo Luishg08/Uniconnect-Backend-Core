@@ -914,6 +914,90 @@ export class GroupsService {
     });
   }
 
+  async transferOwnership(groupId: number, newOwnerId: number, currentUserId: number) {
+    // Verificar que el grupo existe y no es un chat privado
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { 
+        id_group: true, 
+        owner_id: true, 
+        is_direct_message: true,
+        name: true 
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    if (group.is_direct_message) {
+      throw new BadRequestException('No puedes transferir propiedad de un chat privado');
+    }
+
+    // Verificar que el usuario actual es el owner
+    if (group.owner_id !== currentUserId) {
+      throw new ForbiddenException('Solo el propietario actual puede transferir la propiedad del grupo');
+    }
+
+    // Verificar que el nuevo owner es miembro del grupo
+    const newOwnerMembership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: newOwnerId, id_group: groupId } },
+    });
+
+    if (!newOwnerMembership) {
+      throw new BadRequestException('El nuevo propietario debe ser miembro del grupo');
+    }
+
+    // Verificar que el nuevo owner existe
+    const newOwner = await this.prisma.user.findUnique({
+      where: { id_user: newOwnerId },
+      select: { id_user: true, full_name: true, email: true },
+    });
+
+    if (!newOwner) {
+      throw new NotFoundException('El usuario especificado no existe');
+    }
+
+    // No permitir transferir a uno mismo
+    if (newOwnerId === currentUserId) {
+      throw new BadRequestException('Ya eres el propietario del grupo');
+    }
+
+    // Realizar la transferencia en una transacción
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Actualizar el owner del grupo
+      const updatedGroup = await tx.group.update({
+        where: { id_group: groupId },
+        data: { owner_id: newOwnerId },
+        include: {
+          owner: {
+            select: { id_user: true, full_name: true, email: true, picture: true },
+          },
+        },
+      });
+
+      // 2. Asegurar que el nuevo owner tenga permisos de admin
+      await tx.membership.update({
+        where: { id_user_id_group: { id_user: newOwnerId, id_group: groupId } },
+        data: { is_admin: true },
+      });
+
+      // 3. Opcional: Mantener al antiguo owner como admin o convertirlo en miembro regular
+      // Por ahora lo mantenemos como admin
+      await tx.membership.update({
+        where: { id_user_id_group: { id_user: currentUserId, id_group: groupId } },
+        data: { is_admin: true },
+      });
+
+      return {
+        message: 'Propiedad del grupo transferida exitosamente',
+        group: updatedGroup,
+        previous_owner_id: currentUserId,
+        new_owner_id: newOwnerId,
+      };
+    });
+  }
+
   async inviteUser(groupId: number, inviteeId: number, userId: number) {
     // Verificar que quien ejecuta es el owner
     const group = await this.prisma.group.findUnique({

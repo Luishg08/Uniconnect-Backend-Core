@@ -57,43 +57,9 @@ export class ConnectionsService {
 
     if (existingConnection) {
       if (existingConnection.status === 'rejected') {
-        // Permitir reenvío: actualizar la conexión rechazada a pendiente
-        const updated = await this.prisma.connection.update({
-          where: { id_connection: existingConnection.id_connection },
-          data: {
-            requester_id: requesterId,
-            adressee_id: adresseeId,
-            status: 'pending',
-            request_at: new Date(),
-            respondend_at: null,
-          },
-          include: {
-            requester: {
-              select: { id_user: true, full_name: true, picture: true },
-            },
-          },
-        });
-
-        // Emitir evento para crear notificación (solicitud reenviada = nuevo evento)
-        const payload: ConnectionRequestSentPayload = {
-          id_connection: updated.id_connection,
-          requester_id: requesterId,
-          requester_name: updated.requester?.full_name || '',
-          requester_picture: updated.requester?.picture ?? undefined,
-          addressee_id: adresseeId,
-          sent_at: new Date(),
-        };
-        console.log('🔔 [ConnectionsService] EMITTING CONNECTION_REQUEST_SENT (RESEND):', {
-          event: MESSAGE_EVENTS.CONNECTION_REQUEST_SENT,
-          payload,
-          timestamp: new Date().toISOString(),
-        });
-        this.eventEmitter.emit(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT, payload);
-
-        return {
-          id_connection: updated.id_connection,
-          message: 'Solicitud de conexión reenviada',
-        };
+        throw new BadRequestException(
+          'No puedes enviar una solicitud de conexión a este usuario. Tu solicitud anterior fue rechazada.'
+        );
       }
       throw new BadRequestException('Ya existe una conexión o solicitud pendiente');
     }
@@ -161,64 +127,100 @@ export class ConnectionsService {
   }
 
   async acceptConnectionRequest(connectionId: number, userId: number) {
-    const connection = await this.prisma.connection.findUnique({
-      where: { id_connection: connectionId },
-    });
+    try {
+      console.log('🔍 [acceptConnectionRequest] Starting:', { connectionId, userId });
 
-    if (!connection) {
-      throw new NotFoundException('Solicitud no encontrada');
+      const connection = await this.prisma.connection.findUnique({
+        where: { id_connection: connectionId },
+      });
+
+      console.log('🔍 [acceptConnectionRequest] Connection found:', connection);
+
+      if (!connection) {
+        throw new NotFoundException('Solicitud no encontrada');
+      }
+
+      if (connection.adressee_id !== userId) {
+        throw new BadRequestException('No tienes permiso para aceptar esta solicitud');
+      }
+
+      if (connection.status !== 'pending') {
+        throw new BadRequestException('Esta solicitud ya fue respondida');
+      }
+
+      console.log('🔍 [acceptConnectionRequest] Updating connection...');
+
+      const updatedConnection = await this.prisma.connection.update({
+        where: { id_connection: connectionId },
+        data: {
+          status: 'accepted',
+          respondend_at: new Date(),
+        },
+      });
+
+      console.log('✅ [acceptConnectionRequest] Connection updated:', updatedConnection);
+
+      return {
+        message: 'Solicitud aceptada',
+        connection: updatedConnection,
+      };
+    } catch (error) {
+      console.error('❌ [acceptConnectionRequest] Error:', {
+        message: error.message,
+        stack: error.stack,
+        connectionId,
+        userId,
+      });
+      throw error;
     }
-
-    if (connection.adressee_id !== userId) {
-      throw new BadRequestException('No tienes permiso para aceptar esta solicitud');
-    }
-
-    if (connection.status !== 'pending') {
-      throw new BadRequestException('Esta solicitud ya fue respondida');
-    }
-
-    const updatedConnection = await this.prisma.connection.update({
-      where: { id_connection: connectionId },
-      data: {
-        status: 'accepted',
-        respondend_at: new Date(),
-      },
-    });
-
-    return {
-      message: 'Solicitud aceptada',
-      connection: updatedConnection,
-    };
   }
 
   async rejectConnectionRequest(connectionId: number, userId: number) {
-    const connection = await this.prisma.connection.findUnique({
-      where: { id_connection: connectionId },
-    });
+    try {
+      console.log('🔍 [rejectConnectionRequest] Starting:', { connectionId, userId });
 
-    if (!connection) {
-      throw new NotFoundException('Solicitud no encontrada');
+      const connection = await this.prisma.connection.findUnique({
+        where: { id_connection: connectionId },
+      });
+
+      console.log('🔍 [rejectConnectionRequest] Connection found:', connection);
+
+      if (!connection) {
+        throw new NotFoundException('Solicitud no encontrada');
+      }
+
+      if (connection.adressee_id !== userId) {
+        throw new BadRequestException('No tienes permiso para rechazar esta solicitud');
+      }
+
+      if (connection.status !== 'pending') {
+        throw new BadRequestException('Esta solicitud ya fue respondida');
+      }
+
+      console.log('🔍 [rejectConnectionRequest] Updating connection...');
+
+      const updatedConnection = await this.prisma.connection.update({
+        where: { id_connection: connectionId },
+        data: {
+          status: 'rejected',
+          respondend_at: new Date(),
+        },
+      });
+
+      console.log('✅ [rejectConnectionRequest] Connection updated:', updatedConnection);
+
+      return {
+        message: 'Solicitud rechazada',
+        connection: updatedConnection,
+      };
+    } catch (error) {
+      console.error('❌ [rejectConnectionRequest] Error:', {
+        message: error.message,
+        stack: error.stack,
+        connectionId,
+        userId,
+      });
+      throw error;
     }
-
-    if (connection.adressee_id !== userId) {
-      throw new BadRequestException('No tienes permiso para rechazar esta solicitud');
-    }
-
-    if (connection.status !== 'pending') {
-      throw new BadRequestException('Esta solicitud ya fue respondida');
-    }
-
-    const updatedConnection = await this.prisma.connection.update({
-      where: { id_connection: connectionId },
-      data: {
-        status: 'rejected',
-        respondend_at: new Date(),
-      },
-    });
-
-    return {
-      message: 'Solicitud rechazada',
-      connection: updatedConnection,
-    };
   }
 }
