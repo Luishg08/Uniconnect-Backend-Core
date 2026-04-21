@@ -351,8 +351,29 @@ export class EventsService {
 
   async update(id: string, updateEventDto: UpdateEventDto, userId: number, userRole: string): Promise<FENResponse<any>> {
     try {
+      const eventId = parseInt(id, 10);
+      
+      if (isNaN(eventId)) {
+        return this.formatFENResponse(
+          false,
+          null,
+          {
+            code: 'INVALID_ID',
+            message: 'ID de evento inválido',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
       const existingEvent = await (this.prisma as any).event.findUnique({
-        where: { id },
+        where: { id_event: eventId },
       });
 
       if (!existingEvent) {
@@ -395,7 +416,7 @@ export class EventsService {
       }
 
       const event = await (this.prisma as any).event.update({
-        where: { id },
+        where: { id_event: eventId },
         data: {
           ...updateEventDto,
           ...(updateEventDto.date && { date: new Date(updateEventDto.date) }),
@@ -406,6 +427,13 @@ export class EventsService {
               id_user: true,
               full_name: true,
               email: true,
+              picture: true,
+            },
+          },
+          program: {
+            select: {
+              id_program: true,
+              name: true,
             },
           },
         },
@@ -451,9 +479,30 @@ export class EventsService {
     userRole: string,
   ): Promise<FENResponse<DeleteEventResponse>> {
     try {
+      const eventId = parseInt(id, 10);
+      
+      if (isNaN(eventId)) {
+        return this.formatFENResponse<DeleteEventResponse>(
+          false,
+          null,
+          {
+            code: 'INVALID_ID',
+            message: 'ID de evento inválido',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
       // 1. Buscar el evento por ID
       const existingEvent = await (this.prisma as any).event.findUnique({
-        where: { id },
+        where: { id_event: eventId },
       });
 
       // 2. Validar que el evento existe
@@ -501,7 +550,7 @@ export class EventsService {
 
       // 4. Eliminar el evento
       await (this.prisma as any).event.delete({
-        where: { id },
+        where: { id_event: eventId },
       });
 
       // 5. Retornar respuesta exitosa
@@ -541,14 +590,36 @@ export class EventsService {
 
   async findOne(id: string, userId?: number) {
     try {
+      const eventId = parseInt(id, 10);
+      
+      if (isNaN(eventId)) {
+        return this.formatFENResponse(
+          false,
+          null,
+          {
+            code: 'INVALID_ID',
+            message: 'ID de evento inválido',
+          },
+          {
+            total: 0,
+            page: 1,
+            pageSize: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+            timestamp: new Date().toISOString(),
+          },
+        );
+      }
+
       const event = await (this.prisma as any).event.findUnique({
-        where: { id },
+        where: { id_event: eventId },
         include: {
           creator: {
             select: {
               id_user: true,
               full_name: true,
               email: true,
+              picture: true,
             },
           },
           program: {

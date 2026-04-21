@@ -19,6 +19,7 @@ model user {
   push_token            push_token[]
   group_join_requests   group_join_request[]
   events_created        event[]
+  token_blacklist       token_blacklist[]
   program               program?           @relation(fields: [id_program], references: [id_program])
   role                  role               @relation(fields: [id_role], references: [id_role])
 }

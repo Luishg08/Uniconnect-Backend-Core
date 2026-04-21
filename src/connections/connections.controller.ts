@@ -7,6 +7,7 @@ import {
   Body,
   UseGuards,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConnectionsService } from './connections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -48,7 +49,22 @@ export class ConnectionsController {
     @Param('id') id: string,
     @GetClaim('sub') userId: number,
   ) {
-    return this.connectionsService.acceptConnectionRequest(+id, userId);
+    try {
+      const connectionId = parseInt(id, 10);
+      
+      if (isNaN(connectionId)) {
+        throw new BadRequestException('ID de conexión inválido');
+      }
+
+      return await this.connectionsService.acceptConnectionRequest(connectionId, userId);
+    } catch (error) {
+      console.error('❌ [ConnectionsController.acceptConnectionRequest] Error:', {
+        id,
+        userId,
+        error: error.message,
+      });
+      throw error;
+    }
   }
 
   @Patch(':id/reject')
@@ -56,6 +72,21 @@ export class ConnectionsController {
     @Param('id') id: string,
     @GetClaim('sub') userId: number,
   ) {
-    return this.connectionsService.rejectConnectionRequest(+id, userId);
+    try {
+      const connectionId = parseInt(id, 10);
+      
+      if (isNaN(connectionId)) {
+        throw new BadRequestException('ID de conexión inválido');
+      }
+
+      return await this.connectionsService.rejectConnectionRequest(connectionId, userId);
+    } catch (error) {
+      console.error('❌ [ConnectionsController.rejectConnectionRequest] Error:', {
+        id,
+        userId,
+        error: error.message,
+      });
+      throw error;
+    }
   }
 }

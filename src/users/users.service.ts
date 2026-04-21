@@ -666,4 +666,36 @@ export class UsersService {
     };
   }
 
+  // =====================================================
+  // TOKEN BLACKLIST MANAGEMENT
+  // =====================================================
+
+  async addTokenToBlacklist(token: string, userId: number, expiresAt: Date) {
+    return await this.prisma.token_blacklist.create({
+      data: {
+        token,
+        user_id: userId,
+        expires_at: expiresAt,
+      },
+    });
+  }
+
+  async findBlacklistedToken(token: string) {
+    return await this.prisma.token_blacklist.findUnique({
+      where: { token },
+    });
+  }
+
+  async cleanExpiredTokens() {
+    // Método para limpiar tokens expirados de la blacklist (puede ejecutarse con un cron job)
+    const now = new Date();
+    return await this.prisma.token_blacklist.deleteMany({
+      where: {
+        expires_at: {
+          lt: now,
+        },
+      },
+    });
+  }
+
 }
