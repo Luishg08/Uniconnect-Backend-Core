@@ -1,8 +1,0 @@
-services:
-  uniconnect-api:
-    build: .
-    container_name: uniconnect-api
-    ports:
-      - "${PORT}:${PORT}"
-    env_file:
-      - .env
