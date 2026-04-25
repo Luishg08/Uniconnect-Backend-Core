@@ -1,11 +1,11 @@
 model token_blacklist {
-  id            Int      @id @default(autoincrement())
-  token         String   @unique @db.Text
-  user_id       Int
-  revoked_at    DateTime @default(now()) @db.Timestamptz(6)
-  expires_at    DateTime @db.Timestamptz(6)
-  
-  user          user     @relation(fields: [user_id], references: [id_user], onDelete: Cascade)
+  id         Int      @id @default(autoincrement())
+  token      String   @unique @db.Text
+  user_id    Int
+  revoked_at DateTime @default(now()) @db.Timestamptz(6)
+  expires_at DateTime @db.Timestamptz(6)
+
+  user user @relation(fields: [user_id], references: [id_user], onDelete: Cascade)
 
   @@index([token])
   @@index([user_id])
