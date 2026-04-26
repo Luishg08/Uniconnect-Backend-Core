@@ -9,11 +9,12 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { MessagesService } from './messages.service';
-import { SendMessageDto, MessageEventDto } from './dto/websocket-message.dto';
+import { SendMessageDto, MessageEventDto, MessageReadDto, UserPresenceDto, GroupActivityDto } from './dto/websocket-message.dto';
 import { Logger } from '@nestjs/common';
 import { SocketData } from './types/SocketData';
 import { ChatSessionManager } from './managers/chat-session.manager';
 import { PrismaService } from '../prisma/prisma.service';
+import { ContentModeration } from './decorators/content-moderation.decorator';
 
 @WebSocketGateway({
   cors: {
@@ -27,6 +28,10 @@ export class MessagesGateway
   server: Server;
   private readonly logger = new Logger(MessagesGateway.name);
   private readonly sessionManager = ChatSessionManager.getInstance();
+  
+  // Throttling para eventos de presencia (userId -> timestamp)
+  private presenceThrottle: Map<number, number> = new Map();
+  private readonly PRESENCE_THROTTLE_MS = 5000; // 5 segundos
 
   constructor(
     private messagesService: MessagesService,
@@ -54,6 +59,20 @@ export class MessagesGateway
    */
   async handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
+    
+    const id_user = client.data.id_user as number;
+    const id_group = client.data.id_group as number;
+    
+    // Emitir evento de presencia offline antes de remover sesión
+    if (id_user && id_group) {
+      const roomName = `group-${id_group}`;
+      this.server.to(roomName).emit('user:presence', {
+        id_user,
+        status: 'offline',
+        last_seen: new Date(),
+      });
+    }
+    
     this.sessionManager.removeUserSession(client.id);
   }
 
@@ -118,6 +137,9 @@ export class MessagesGateway
       client.join(roomName);
       this.sessionManager.joinGroupRoom(data.id_group, client.id);
 
+      // Establecer presencia inicial a 'online'
+      this.sessionManager.setUserPresence(data.id_user, 'online');
+
       this.logger.log(
         `User ${data.id_user} joined group ${data.id_group} with membership ${membershipId} (room: ${roomName})`,
       );
@@ -127,6 +149,13 @@ export class MessagesGateway
         id_user: data.id_user,
         id_membership: membershipId,
         message: 'Usuario conectado',
+      });
+
+      // Emitir evento de presencia online
+      this.server.to(roomName).emit('user:presence', {
+        id_user: data.id_user,
+        status: 'online',
+        last_seen: new Date(),
       });
 
       return { success: true, message: 'Authenticated', id_membership: membershipId };
@@ -143,9 +172,11 @@ export class MessagesGateway
    * Recibir nuevo mensaje en tiempo real
    * Evento: 'message:send'
    * Datos: { text_content, attachments?, files? }
-   * El id_membership se toma de la sesión autenticada
+   * El id_membership se toma de la sesión autenticada.
+   * @ContentModeration intercepta el texto antes del procesamiento.
    */
   @SubscribeMessage('message:send')
+  @ContentModeration({ filterProfanity: true, maxLength: 500, logActivity: true })
   async handleMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { text_content: string; attachments?: string | null; files?: any[] },
@@ -491,6 +522,142 @@ export class MessagesGateway
     }
 
     return { success: true, stats };
+  }
+
+  /**
+   * Notificar lectura de mensaje (Patrón Observer)
+   * Evento: 'message:read'
+   * Datos: { id_message, id_user, read_at }
+   */
+  @SubscribeMessage('message:read')
+  async handleMessageRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: MessageReadDto,
+  ) {
+    try {
+      const id_group = client.data.id_group as number;
+      const id_user = client.data.id_user as number;
+
+      if (!id_group || !id_user) {
+        return { error: 'Usuario no autenticado' };
+      }
+
+      // Emitir evento a todos los usuarios en el room del grupo
+      const roomName = `group-${id_group}`;
+      this.server.to(roomName).emit('message:read', {
+        id_message: data.id_message,
+        id_user: data.id_user,
+        read_at: data.read_at,
+      });
+
+      this.logger.log(
+        `Message ${data.id_message} read by user ${data.id_user} in group ${id_group}`,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Error handling message read:', error);
+      return { error: 'Error al procesar lectura de mensaje' };
+    }
+  }
+
+  /**
+   * Broadcast de presencia de usuario (Patrón Observer)
+   * Evento: 'user:presence'
+   * Datos: { status: 'online' | 'offline' | 'away' }
+   */
+  @SubscribeMessage('user:presence')
+  async handleUserPresence(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { status: 'online' | 'offline' | 'away' },
+  ) {
+    try {
+      const id_group = client.data.id_group as number;
+      const id_user = client.data.id_user as number;
+
+      if (!id_group || !id_user) {
+        return { error: 'Usuario no autenticado' };
+      }
+
+      // Throttling: verificar si han pasado 5 segundos desde la última emisión
+      const now = Date.now();
+      const lastEmit = this.presenceThrottle.get(id_user);
+      
+      if (lastEmit && now - lastEmit < this.PRESENCE_THROTTLE_MS) {
+        this.logger.debug(
+          `Presence update throttled for user ${id_user} (${now - lastEmit}ms since last)`,
+        );
+        return { success: true, throttled: true };
+      }
+
+      // Actualizar presencia en ChatSessionManager
+      this.sessionManager.setUserPresence(id_user, data.status);
+
+      // Actualizar timestamp de throttling
+      this.presenceThrottle.set(id_user, now);
+
+      // Emitir evento a todos los usuarios en el room del grupo
+      const roomName = `group-${id_group}`;
+      this.server.to(roomName).emit('user:presence', {
+        id_user,
+        status: data.status,
+        last_seen: new Date(),
+      });
+
+      this.logger.log(
+        `User ${id_user} presence changed to ${data.status} in group ${id_group}`,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Error handling user presence:', error);
+      return { error: 'Error al procesar presencia de usuario' };
+    }
+  }
+
+  /**
+   * Notificar actividad de grupo (Patrón Observer)
+   * Evento: 'group:activity'
+   * Datos: GroupActivityDto
+   */
+  @SubscribeMessage('group:activity')
+  async handleGroupActivity(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: GroupActivityDto,
+  ) {
+    try {
+      const id_group = client.data.id_group as number;
+      const id_user = client.data.id_user as number;
+
+      if (!id_group || !id_user) {
+        return { error: 'Usuario no autenticado' };
+      }
+
+      // Validar activity_type
+      const validTypes = ['member_joined', 'member_left', 'group_updated'];
+      if (!validTypes.includes(data.activity_type)) {
+        return { error: 'Tipo de actividad inválido' };
+      }
+
+      // Emitir evento a todos los usuarios en el room del grupo
+      const roomName = `group-${id_group}`;
+      this.server.to(roomName).emit('group:activity', {
+        id_group: data.id_group,
+        activity_type: data.activity_type,
+        actor_id: data.actor_id,
+        actor_name: data.actor_name,
+        timestamp: data.timestamp,
+      });
+
+      this.logger.log(
+        `Group activity ${data.activity_type} by user ${data.actor_id} in group ${id_group}`,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Error handling group activity:', error);
+      return { error: 'Error al procesar actividad de grupo' };
+    }
   }
 
   /**
