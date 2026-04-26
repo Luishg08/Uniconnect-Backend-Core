@@ -75,6 +75,45 @@ export class GroupsController {
     return this.groupsService.findUserDirectMessages(userId);
   }
 
+  @Get('owner/pending-requests')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Solicitudes de unión pendientes de todos los grupos del owner',
+    description: 'Retorna todos los grupos del usuario autenticado que tienen solicitudes pendientes, agrupadas por grupo.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de grupos con sus solicitudes pendientes.',
+    schema: {
+      example: [
+        {
+          id_group: 1,
+          name: 'Grupo Cálculo I',
+          description: 'Grupo de estudio',
+          joinRequests: [
+            {
+              id_request: 5,
+              status: 'pending',
+              requested_at: '2026-04-26T10:00:00Z',
+              requester: {
+                id_user: 12,
+                full_name: 'Ana García',
+                picture: null,
+                email: 'ana@ucaldas.edu.co',
+                program: { name: 'Ingeniería de Sistemas' },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado.' })
+  getAllPendingRequestsForOwner(@GetClaim('sub') userId: number) {
+    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    return this.groupsService.getAllPendingRequestsForOwner(numericUserId);
+  }
+
   @Get('by-course/:courseId')
   @ApiOperation({ summary: 'Buscar grupos por materia específica' })
   @ApiResponse({ status: 200, description: 'Lista de grupos de la materia.' })

@@ -658,6 +658,50 @@ export class GroupsService {
     });
   }
 
+  /**
+   * Obtiene todas las solicitudes de unión pendientes de todos los grupos
+   * donde el usuario autenticado es el owner.
+   * Usado por: GET /groups/owner/pending-requests
+   */
+  async getAllPendingRequestsForOwner(userId: number) {
+    const groups = await this.prisma.group.findMany({
+      where: {
+        owner_id: userId,
+        is_direct_message: false,
+      },
+      select: {
+        id_group: true,
+        name: true,
+        description: true,
+        group_join_requests: {
+          where: { status: 'pending' },
+          include: {
+            requester: {
+              select: {
+                id_user: true,
+                full_name: true,
+                picture: true,
+                email: true,
+                program: { select: { name: true } },
+              },
+            },
+          },
+          orderBy: { requested_at: 'desc' },
+        },
+      },
+    });
+
+    // Filtrar grupos sin solicitudes y mapear al formato esperado por el frontend
+    return groups
+      .filter((g) => g.group_join_requests.length > 0)
+      .map((g) => ({
+        id_group: g.id_group,
+        name: g.name,
+        description: g.description,
+        joinRequests: g.group_join_requests,
+      }));
+  }
+
   async acceptJoinRequest(requestId: number, groupId: number, userId: number) {
     // Verificar que el usuario es el owner
     const group = await this.prisma.group.findUnique({
