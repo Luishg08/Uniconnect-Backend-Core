@@ -19,8 +19,11 @@ export class GroupsController {
   @ApiResponse({ status: 201, description: 'El grupo y la membresía han sido creados.' })
   @ApiResponse({ status: 404, description: 'El curso especificado no existe.' })
   @ApiResponse({ status: 500, description: 'Error interno al procesar la transacción.' })
-  create(@Body() createGroupDto: CreateGroupDto) {
-    return this.groupsService.create(createGroupDto);
+  create(
+    @Body() createGroupDto: CreateGroupDto,
+    @GetClaim('sub') userId: number,
+  ) {
+    return this.groupsService.create(createGroupDto, userId);
   }
 
   @Get('user/:userId')
@@ -247,6 +250,44 @@ export class GroupsController {
     @GetClaim('sub') userId: number,
   ) {
     return this.groupsService.makeAdmin(groupId, memberId, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
+  @Patch(':id/transfer-ownership/:newOwnerId')
+  @ApiOperation({
+    summary: 'HU: Transferir propiedad del grupo (Solo owner)',
+    description: 'Owner transfiere la propiedad del grupo a otro miembro. El nuevo propietario debe ser miembro del grupo.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Propiedad transferida exitosamente',
+    schema: {
+      example: {
+        message: 'Propiedad del grupo transferida exitosamente',
+        group: {
+          id_group: 1,
+          name: 'Grupo de Estudio',
+          owner_id: 5,
+          owner: {
+            id_user: 5,
+            full_name: 'Nuevo Propietario',
+            email: 'nuevo@ucaldas.edu.co'
+          }
+        },
+        previous_owner_id: 3,
+        new_owner_id: 5
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'El nuevo propietario debe ser miembro del grupo o ya eres el propietario' })
+  @ApiResponse({ status: 403, description: 'Solo el propietario actual puede transferir la propiedad' })
+  @ApiResponse({ status: 404, description: 'Grupo o usuario no encontrado' })
+  transferOwnership(
+    @Param('id', ParseIntPipe) groupId: number,
+    @Param('newOwnerId', ParseIntPipe) newOwnerId: number,
+    @GetClaim('sub') userId: number,
+  ) {
+    return this.groupsService.transferOwnership(groupId, newOwnerId, userId);
   }
 
   @UseGuards(JwtAuthGuard, GroupOwnershipGuard)

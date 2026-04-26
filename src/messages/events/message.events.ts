@@ -140,3 +140,53 @@ export interface GroupJoinRequestRejectedPayload {
   requester_id: number;
   responded_at: Date;
 }
+
+/**
+ * Payload para evento de grupo creado
+ * US-O01: Observer para eventos del grupo de estudio
+ */
+export interface GroupCreatedPayload {
+  id_group: number;
+  group_name: string;
+  owner_id: number;
+  owner_name: string;
+  id_course: number;
+  course_name: string;
+  created_at: Date;
+}
+
+/**
+ * Payload para evento de grupo actualizado
+ * US-O01: Observer para eventos del grupo de estudio
+ */
+export interface GroupUpdatedPayload {
+  id_group: number;
+  group_name: string;
+  owner_id: number;
+  updated_fields: string[];
+  updated_at: Date;
+}
+
+/**
+ * Payload para evento de grupo eliminado
+ * US-O01: Observer para eventos del grupo de estudio
+ */
+export interface GroupDeletedPayload {
+  id_group: number;
+  group_name: string;
+  owner_id: number;
+  member_ids: number[];
+  deleted_at: Date;
+}
+
+/**
+ * Payload para evento de usuario que salió del grupo
+ * US-O01: Observer para eventos del grupo de estudio
+ */
+export interface UserLeftGroupPayload {
+  id_user: number;
+  user_name: string;
+  id_group: number;
+  group_name: string;
+  left_at: Date;
+}

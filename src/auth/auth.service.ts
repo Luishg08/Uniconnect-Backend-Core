@@ -25,7 +25,7 @@ export class AuthService {
             throw new UnauthorizedException({
                 success: false,
                 statusCode: 401,
-                message: 'Invalid Google token or email not verified'
+                message: 'Token de Google inválido o correo no verificado'
             });
         }
 
@@ -34,7 +34,7 @@ export class AuthService {
             throw new UnauthorizedException({
                 success: false,
                 statusCode: 401,
-                message: 'Email domain not allowed'
+                message: 'Dominio de correo no permitido. Solo se permiten correos @ucaldas.edu.co'
             });
         }
 
@@ -90,7 +90,7 @@ export class AuthService {
             throw new UnauthorizedException({
                 success: false,
                 statusCode: 401,
-                message: 'User not found'
+                message: 'Usuario no encontrado'
             });
         }
         
@@ -116,6 +116,88 @@ export class AuthService {
         return this.jwtService.decode(token);
     }
 
+    async logout(accessToken: string, userId: number) {
+        try {
+            // 1. Verificar que el token sea válido
+            let decoded: any;
+            try {
+                decoded = this.jwtService.verify(accessToken);
+            } catch (error) {
+                throw new UnauthorizedException({
+                    success: false,
+                    statusCode: 401,
+                    message: 'Token inválido o expirado',
+                });
+            }
+
+            // 2. Verificar que el token pertenezca al usuario que hace logout
+            if (decoded.sub !== userId) {
+                throw new UnauthorizedException({
+                    success: false,
+                    statusCode: 401,
+                    message: 'El token no pertenece al usuario autenticado',
+                });
+            }
+
+            // 3. Verificar si el token ya está en la blacklist
+            const existingBlacklist = await this.usersService.findBlacklistedToken(accessToken);
+            if (existingBlacklist) {
+                return {
+                    success: true,
+                    data: {
+                        message: 'Logout successful',
+                    },
+                    error: null,
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                    },
+                };
+            }
+
+            // 4. Agregar el token a la blacklist
+            const expiresAt = new Date(decoded.exp * 1000); // exp está en segundos
+            await this.usersService.addTokenToBlacklist(accessToken, userId, expiresAt);
+
+            console.log('✅ [AuthService.logout] Token invalidated:', {
+                userId,
+                expiresAt,
+                timestamp: new Date().toISOString(),
+            });
+
+            return {
+                success: true,
+                data: {
+                    message: 'Logout successful',
+                },
+                error: null,
+                metadata: {
+                    timestamp: new Date().toISOString(),
+                },
+            };
+        } catch (error) {
+            console.error('❌ [AuthService.logout] Error:', {
+                message: error.message,
+                userId,
+            });
+
+            if (error instanceof UnauthorizedException) {
+                throw error;
+            }
+
+            throw new InternalServerErrorException({
+                success: false,
+                statusCode: 500,
+                message: 'Error al cerrar sesión',
+                error: error.message || 'Ocurrió un error desconocido',
+            });
+        }
+    }
+
+    async isTokenBlacklisted(token: string): Promise<boolean> {
+        const blacklisted = await this.usersService.findBlacklistedToken(token);
+        return !!blacklisted;
+    }
+
     async auth0Callback(authorizationCode: string, redirectUri: string, codeVerifier: string) {
         try {
             const tokenResponse = await this.exchangeAuth0Code(authorizationCode, redirectUri, codeVerifier);
@@ -126,7 +208,7 @@ export class AuthService {
                 throw new UnauthorizedException({
                     success: false,
                     statusCode: 401,
-                    message: 'Email domain not allowed. Only @ucaldas.edu.co emails are permitted.'
+                    message: 'Dominio de correo no permitido. Solo se permiten correos @ucaldas.edu.co'
                 });
             }
 
@@ -193,8 +275,8 @@ export class AuthService {
             throw new UnauthorizedException({
                 success: false,
                 statusCode: 401,
-                message: 'Authentication failed',
-                error: error.message || 'Unknown error occurred'
+                message: 'Autenticación fallida',
+                error: error.message || 'Ocurrió un error desconocido'
             });
         }
     }
@@ -309,7 +391,7 @@ export class AuthService {
                 throw new UnauthorizedException({
                     success: false,
                     statusCode: 401,
-                    message: 'User not found'
+                    message: 'Usuario no encontrado'
                 });
             }
 

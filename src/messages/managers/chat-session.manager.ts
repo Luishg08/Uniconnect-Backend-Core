@@ -28,10 +28,14 @@ export class ChatSessionManager {
   // Mapeo de socketId a userId para búsqueda rápida
   private socketToUser: Map<string, number>;
 
+  // Mapeo de userId a estado de presencia (online/offline/away)
+  private userPresences: Map<number, 'online' | 'offline' | 'away'>;
+
   private constructor() {
     this.userSessions = new Map();
     this.groupRooms = new Map();
     this.socketToUser = new Map();
+    this.userPresences = new Map();
     this.logger.log('ChatSessionManager initialized (Singleton)');
   }
 
@@ -85,6 +89,8 @@ export class ChatSessionManager {
 
         if (sessions.length === 0) {
           this.userSessions.delete(userId);
+          // Establecer presencia a offline cuando no hay más sesiones
+          this.setUserPresence(userId, 'offline');
           this.logger.log(`User ${userId} has no more active sessions`);
         } else {
           this.logger.log(
@@ -197,12 +203,55 @@ export class ChatSessionManager {
   }
 
   /**
+   * Establece el estado de presencia de un usuario
+   */
+  public setUserPresence(
+    userId: number,
+    status: 'online' | 'offline' | 'away',
+  ): void {
+    this.userPresences.set(userId, status);
+    this.logger.log(`User ${userId} presence set to ${status}`);
+  }
+
+  /**
+   * Obtiene el estado de presencia de un usuario
+   */
+  public getUserPresence(
+    userId: number,
+  ): 'online' | 'offline' | 'away' | null {
+    return this.userPresences.get(userId) ?? null;
+  }
+
+  /**
+   * Obtiene todos los estados de presencia de usuarios en un grupo
+   */
+  public getGroupPresences(
+    groupId: number,
+  ): Map<number, 'online' | 'offline' | 'away'> {
+    const presences = new Map<number, 'online' | 'offline' | 'away'>();
+    const sockets = this.getGroupSockets(groupId);
+
+    for (const socketId of sockets) {
+      const userId = this.socketToUser.get(socketId);
+      if (userId) {
+        const presence = this.getUserPresence(userId);
+        if (presence) {
+          presences.set(userId, presence);
+        }
+      }
+    }
+
+    return presences;
+  }
+
+  /**
    * Limpia todas las sesiones (útil para testing)
    */
   public clearAll(): void {
     this.userSessions.clear();
     this.groupRooms.clear();
     this.socketToUser.clear();
+    this.userPresences.clear();
     this.logger.warn('All sessions cleared');
   }
 }

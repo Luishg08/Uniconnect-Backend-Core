@@ -8,6 +8,7 @@ import { MessageRepository } from './message.repository';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { MESSAGE_EVENTS, MessageSentPayload } from './events/message.events';
+import { ContentModeration } from './decorators/content-moderation.decorator';
 
 @Injectable()
 export class MessagesService {
@@ -17,8 +18,11 @@ export class MessagesService {
   ) {}
 
   /**
-   * Crear un nuevo mensaje y emitir evento
+   * Crear un nuevo mensaje y emitir evento.
+   * @ContentModeration intercepta el DTO antes del procesamiento para
+   * filtrar palabras prohibidas y validar longitud.
    */
+  @ContentModeration({ filterProfanity: true, maxLength: 500, logActivity: true })
   async create(createMessageDto: CreateMessageDto) {
     const message = await this.messageRepository.createWithFiles(
       createMessageDto,

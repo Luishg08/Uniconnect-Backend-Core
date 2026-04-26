@@ -15,15 +15,18 @@ export class GroupsService {
   ) { }
 
   // 1. Crear grupo con validaciones y membresía automática
-  async create(createGroupDto: CreateGroupDto) {
+  async create(createGroupDto: CreateGroupDto, userId: number) {
+    // Usar userId del JWT en lugar del DTO para seguridad
+    const owner_id = userId;
+    
     // Validar que el usuario existe
     const user = await this.prisma.user.findUnique({
-      where: { id_user: createGroupDto.owner_id },
+      where: { id_user: owner_id },
       include: { role: true },
     });
 
     if (!user) {
-      throw new NotFoundException(`Usuario con ID ${createGroupDto.owner_id} no encontrado.`);
+      throw new NotFoundException(`Usuario con ID ${owner_id} no encontrado.`);
     }
 
     // Validar que el curso existe
@@ -37,38 +40,51 @@ export class GroupsService {
 
     // Validar que el usuario está inscrito en el curso
     await this.groupValidator.validateCourseEnrollment(
-      createGroupDto.owner_id,
+      owner_id,
       createGroupDto.id_course,
     );
 
     // Validar límite de 3 grupos por materia
     await this.groupValidator.validateMaxGroupsPerCourse(
-      createGroupDto.owner_id,
+      owner_id,
       createGroupDto.id_course,
     );
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const group = await tx.group.create({
+      const group = await this.prisma.$transaction(async (tx) => {
+        const createdGroup = await tx.group.create({
           data: {
             name: createGroupDto.name,
             description: createGroupDto.description,
             id_course: createGroupDto.id_course,
-            owner_id: createGroupDto.owner_id,
+            owner_id: owner_id,
           },
         });
 
         await tx.membership.create({
           data: {
-            id_user: createGroupDto.owner_id,
-            id_group: group.id_group,
+            id_user: owner_id,
+            id_group: createdGroup.id_group,
             is_admin: true,
             joined_at: new Date(),
           },
         });
 
-        return group;
+        return createdGroup;
       });
+
+      // Emitir evento GROUP_CREATED después de transacción exitosa
+      this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_CREATED, {
+        id_group: group.id_group,
+        group_name: group.name || 'Grupo',
+        owner_id: group.owner_id!,
+        owner_name: user.full_name || 'Usuario',
+        id_course: group.id_course!,
+        course_name: course.name || 'Curso',
+        created_at: group.created_at,
+      });
+
+      return group;
     } catch (error) {
       throw new InternalServerErrorException('Error al procesar la creación del grupo y su membresía');
     }
@@ -145,10 +161,26 @@ export class GroupsService {
     }
 
     try {
+      // Obtener lista de miembros ANTES de eliminar el grupo
+      const members = await this.prisma.membership.findMany({
+        where: { id_group },
+        select: { id_user: true },
+      });
+      const memberIds = members.map(m => m.id_user).filter((id): id is number => id !== null);
+
       // Si se borra el grupo, 
       // se deberían borrar las membresías en cascada si así está en el DB.
-      return await this.prisma.group.delete({
+      await this.prisma.group.delete({
         where: { id_group },
+      });
+
+      // Emitir evento GROUP_DELETED después de delete exitoso
+      this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_DELETED, {
+        id_group,
+        group_name: group.name || 'Grupo',
+        owner_id: group.owner_id!,
+        member_ids: memberIds,
+        deleted_at: new Date(),
       });
     } catch (error) {
       throw new InternalServerErrorException('Error al intentar eliminar el grupo.');
@@ -177,10 +209,22 @@ export class GroupsService {
     }
 
     // 2. Actualizamos solo los campos enviados
-    return this.prisma.group.update({
+    const updated = await this.prisma.group.update({
       where: { id_group: id },
       data: updateGroupDto,
     });
+
+    // Emitir evento GROUP_UPDATED después de update exitoso
+    const updatedFields = Object.keys(updateGroupDto);
+    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_UPDATED, {
+      id_group: updated.id_group,
+      group_name: updated.name || 'Grupo',
+      owner_id: updated.owner_id!,
+      updated_fields: updatedFields,
+      updated_at: new Date(),
+    });
+
+    return updated;
   }
 
   /**
@@ -506,7 +550,7 @@ export class GroupsService {
           create: {
             id_group: groupId,
             requester_id: userId,
-            status: 'pending',
+            status: 'pending  ',
           },
           update: {
             status: 'pending',
@@ -820,7 +864,10 @@ export class GroupsService {
   async leaveGroup(groupId: number, userId: number) {
     const membership = await this.prisma.membership.findUnique({
       where: { id_user_id_group: { id_user: userId, id_group: groupId } },
-      include: { group: { select: { owner_id: true } } },
+      include: { 
+        group: { select: { owner_id: true, name: true } },
+        user: { select: { full_name: true } }
+      },
     });
 
     if (!membership) {
@@ -834,8 +881,17 @@ export class GroupsService {
       );
     }
 
-    return await this.prisma.membership.delete({
+    await this.prisma.membership.delete({
       where: { id_user_id_group: { id_user: userId, id_group: groupId } },
+    });
+
+    // Emitir evento USER_LEFT_GROUP después de delete membership exitoso
+    this.eventEmitter.emit(MESSAGE_EVENTS.USER_LEFT_GROUP, {
+      id_user: userId,
+      user_name: membership.user?.full_name || 'Usuario',
+      id_group: groupId,
+      group_name: membership.group?.name || 'Grupo',
+      left_at: new Date(),
     });
   }
 
@@ -911,6 +967,90 @@ export class GroupsService {
           select: { id_user: true, full_name: true, picture: true },
         },
       },
+    });
+  }
+
+  async transferOwnership(groupId: number, newOwnerId: number, currentUserId: number) {
+    // Verificar que el grupo existe y no es un chat privado
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { 
+        id_group: true, 
+        owner_id: true, 
+        is_direct_message: true,
+        name: true 
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    if (group.is_direct_message) {
+      throw new BadRequestException('No puedes transferir propiedad de un chat privado');
+    }
+
+    // Verificar que el usuario actual es el owner
+    if (group.owner_id !== currentUserId) {
+      throw new ForbiddenException('Solo el propietario actual puede transferir la propiedad del grupo');
+    }
+
+    // Verificar que el nuevo owner es miembro del grupo
+    const newOwnerMembership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: newOwnerId, id_group: groupId } },
+    });
+
+    if (!newOwnerMembership) {
+      throw new BadRequestException('El nuevo propietario debe ser miembro del grupo');
+    }
+
+    // Verificar que el nuevo owner existe
+    const newOwner = await this.prisma.user.findUnique({
+      where: { id_user: newOwnerId },
+      select: { id_user: true, full_name: true, email: true },
+    });
+
+    if (!newOwner) {
+      throw new NotFoundException('El usuario especificado no existe');
+    }
+
+    // No permitir transferir a uno mismo
+    if (newOwnerId === currentUserId) {
+      throw new BadRequestException('Ya eres el propietario del grupo');
+    }
+
+    // Realizar la transferencia en una transacción
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Actualizar el owner del grupo
+      const updatedGroup = await tx.group.update({
+        where: { id_group: groupId },
+        data: { owner_id: newOwnerId },
+        include: {
+          owner: {
+            select: { id_user: true, full_name: true, email: true, picture: true },
+          },
+        },
+      });
+
+      // 2. Asegurar que el nuevo owner tenga permisos de admin
+      await tx.membership.update({
+        where: { id_user_id_group: { id_user: newOwnerId, id_group: groupId } },
+        data: { is_admin: true },
+      });
+
+      // 3. Opcional: Mantener al antiguo owner como admin o convertirlo en miembro regular
+      // Por ahora lo mantenemos como admin
+      await tx.membership.update({
+        where: { id_user_id_group: { id_user: currentUserId, id_group: groupId } },
+        data: { is_admin: true },
+      });
+
+      return {
+        message: 'Propiedad del grupo transferida exitosamente',
+        group: updatedGroup,
+        previous_owner_id: currentUserId,
+        new_owner_id: newOwnerId,
+      };
     });
   }
 
