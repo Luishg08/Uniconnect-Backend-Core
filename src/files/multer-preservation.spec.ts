@@ -315,7 +315,9 @@ describe('Preservation Property Tests: Runtime File Upload Behavior', () => {
 
             // Verify S3 URL format is preserved
             expect(capturedUrl).toMatch(/^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/uploads\//);
-            expect(capturedUrl).toContain(file.originalname.replace(/\s+/g, '_'));
+            // URL may be encoded; decode before comparing filename
+            const decodedUrl = decodeURIComponent(capturedUrl);
+            expect(decodedUrl).toContain(file.originalname.replace(/\s+/g, '_'));
           }
         ),
         { numRuns: 10 }

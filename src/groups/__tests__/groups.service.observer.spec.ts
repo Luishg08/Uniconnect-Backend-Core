@@ -238,7 +238,7 @@ describe('GroupsService - Observer Pattern (Event Emissions)', () => {
         new Error('DB Error'),
       );
 
-      await expect(service.update(1, { name: 'New Name' })).rejects.toThrow();
+      await expect(service.update(1, 10, { name: 'New Name' })).rejects.toThrow();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });

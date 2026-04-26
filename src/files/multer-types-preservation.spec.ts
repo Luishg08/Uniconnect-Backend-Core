@@ -367,6 +367,9 @@ describe('Preservation Property Tests: Runtime File Upload Behavior', () => {
           fc.integer({ min: 1, max: 50 }),
           fc.integer({ min: 1, max: 50 }),
           async (files, groupId, userId) => {
+            // Reset mocks before each iteration to avoid call count accumulation
+            jest.clearAllMocks();
+
             // Setup mocks
             const messageId = 123;
             mockPrismaService.group.findUnique.mockResolvedValue({ id_group: groupId });

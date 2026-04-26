@@ -108,7 +108,7 @@ describe('EventsService', () => {
       const result = await service.findAll({}, { page: 1, pageSize: 20 });
 
       expect(result.success).toBe(false);
-      expect(result.data).toBeNull();
+      expect(result.data).toEqual([]);
       expect(result.error).not.toBeNull();
       expect(result.error?.code).toBe('INTERNAL_ERROR');
     });
@@ -449,12 +449,12 @@ describe('EventsService', () => {
      */
     it('should return 403 when admin tries to edit event created by another admin', async () => {
       // Arrange: Admin with id_user=5 tries to edit event created by admin with id_user=3
-      const eventId = 'event-123';
+      const eventId = '123'; // Valid numeric ID
       const userId = 5; // Admin trying to edit
       const createdBy = 3; // Original creator
       
       const existingEvent = {
-        id: eventId,
+        id_event: 123, // Use id_event instead of id
         title: 'Original Event',
         description: 'Original Description',
         date: new Date('2024-03-15'),
@@ -490,12 +490,12 @@ describe('EventsService', () => {
 
     it('should allow superadmin to edit any event', async () => {
       // Arrange: Superadmin tries to edit event created by another user
-      const eventId = 'event-123';
+      const eventId = '123'; // Valid numeric ID
       const userId = 10; // Superadmin
       const createdBy = 3; // Original creator
       
       const existingEvent = {
-        id: eventId,
+        id_event: 123, // Use id_event instead of id
         title: 'Original Event',
         description: 'Original Description',
         date: new Date('2024-03-15'),
@@ -569,7 +569,7 @@ describe('EventsService', () => {
     describe('Preservation: Non-existent event returns 404', () => {
       it('should return 404 when event does not exist', async () => {
         // Arrange: Event does not exist
-        const eventId = 'non-existent-event';
+        const eventId = '999'; // Valid numeric ID but event doesn't exist
         const userId = 5;
         const updateDto = {
           title: 'Updated Event',
@@ -595,12 +595,12 @@ describe('EventsService', () => {
     describe('Preservation: Admin editing own event updates successfully', () => {
       it('should allow admin to update their own event', async () => {
         // Arrange: Admin editing their own event
-        const eventId = 'event-123';
+        const eventId = '123'; // Valid numeric ID
         const userId = 5; // Admin
         const createdBy = 5; // Same user
         
         const existingEvent = {
-          id: eventId,
+          id_event: 123, // Use id_event instead of id
           title: 'Original Event',
           description: 'Original Description',
           date: new Date('2024-03-15'),
@@ -650,7 +650,7 @@ describe('EventsService', () => {
         // Verify that update was called
         expect((prismaService as any).event.update).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { id: eventId },
+            where: { id_event: 123 }, // Use id_event as integer
             data: expect.objectContaining(updateDto),
           }),
         );
@@ -755,17 +755,18 @@ describe('EventsService', () => {
 
         await fc.assert(
           fc.asyncProperty(
-            fc.uuid(), // eventId
+            fc.integer({ min: 1, max: 1000 }), // eventId as integer
             fc.integer({ min: 1, max: 1000 }), // userId
             fc.record({
               title: fc.string({ minLength: 1, maxLength: 100 }),
               description: fc.string({ minLength: 1, maxLength: 500 }),
               location: fc.string({ minLength: 1, maxLength: 100 }),
             }),
-            async (eventId, userId, updateDto) => {
+            async (eventIdNum, userId, updateDto) => {
+              const eventId = eventIdNum.toString(); // Convert to string for API
               // Arrange: Admin editing their own event
               const existingEvent = {
-                id: eventId,
+                id_event: eventIdNum, // Use id_event as integer
                 title: 'Original Event',
                 description: 'Original Description',
                 date: new Date('2024-03-15'),
@@ -816,12 +817,13 @@ describe('EventsService', () => {
 
         await fc.assert(
           fc.asyncProperty(
-            fc.uuid(), // eventId
+            fc.integer({ min: 1, max: 1000 }), // eventId as integer
             fc.integer({ min: 1, max: 1000 }), // userId
             fc.record({
               title: fc.string({ minLength: 1, maxLength: 100 }),
             }),
-            async (eventId, userId, updateDto) => {
+            async (eventIdNum, userId, updateDto) => {
+              const eventId = eventIdNum.toString(); // Convert to string for API
               // Arrange: Event does not exist
               (prismaService as any).event.findUnique.mockResolvedValue(null);
 

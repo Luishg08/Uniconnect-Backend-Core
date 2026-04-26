@@ -4,12 +4,17 @@ import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { EventType } from './enums/event-type.enum';
+import { PrismaService } from '../prisma/prisma.service';
+import { createPrismaMock } from '../test/mocks/prisma.mock';
 
 describe('EventsController', () => {
   let controller: EventsController;
   let service: EventsService;
+  let prisma: ReturnType<typeof createPrismaMock>;
 
   beforeEach(async () => {
+    prisma = createPrismaMock();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [EventsController],
       providers: [
@@ -19,6 +24,7 @@ describe('EventsController', () => {
             findAll: jest.fn(),
           },
         },
+        { provide: PrismaService, useValue: prisma },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -65,7 +71,8 @@ describe('EventsController', () => {
         {
           page: 1,
           pageSize: 20,
-        }
+        },
+        undefined // userId from mocked guard (not set in test)
       );
       expect(result).toEqual(mockResponse);
     });
@@ -112,6 +119,7 @@ describe('EventsController', () => {
           type: EventType.CONFERENCIA,
         }),
         { page: 1, pageSize: 20 },
+        undefined,
       );
       expect(result.data?.[0].type).toBe(EventType.CONFERENCIA);
     });
@@ -148,6 +156,7 @@ describe('EventsController', () => {
           type: EventType.TALLER,
         }),
         { page: 1, pageSize: 20 },
+        undefined,
       );
     });
   });
