@@ -16,9 +16,4 @@ export class CreateGroupDto {
   @IsInt()
   @IsNotEmpty()
   id_course: number;
-
-  @ApiProperty({ example: 10, description: 'ID del usuario creador' })
-  @IsInt()
-  @IsNotEmpty()
-  owner_id: number;
 }

@@ -6,6 +6,7 @@ import { GroupBusinessValidator } from './validators/group-business.validator';
 import { GroupOwnershipGuard } from './guards/group-ownership.guard';
 import { AdminOnlyGuard } from './guards/admin-only.guard';
 import { GroupRepository } from './repositories/group.repository';
+import { GroupActivityListener } from './listeners/group-activity.listener';
 
 @Module({
   imports: [PrismaModule],
@@ -16,6 +17,7 @@ import { GroupRepository } from './repositories/group.repository';
     GroupOwnershipGuard,
     AdminOnlyGuard,
     GroupRepository,
+    GroupActivityListener,
   ],
   exports: [GroupsService, GroupBusinessValidator, GroupRepository],
 })

@@ -19,8 +19,11 @@ export class GroupsController {
   @ApiResponse({ status: 201, description: 'El grupo y la membresía han sido creados.' })
   @ApiResponse({ status: 404, description: 'El curso especificado no existe.' })
   @ApiResponse({ status: 500, description: 'Error interno al procesar la transacción.' })
-  create(@Body() createGroupDto: CreateGroupDto) {
-    return this.groupsService.create(createGroupDto);
+  create(
+    @Body() createGroupDto: CreateGroupDto,
+    @GetClaim('sub') userId: number,
+  ) {
+    return this.groupsService.create(createGroupDto, userId);
   }
 
   @Get('user/:userId')

@@ -117,7 +117,6 @@ describe('GroupsService', () => {
         name: 'Grupo de Estudio Cálculo',
         description: 'Grupo para estudiar cálculo diferencial',
         id_course: 1,
-        owner_id: mockStudentUser.id_user,
       };
 
       const mockCourse = {
@@ -164,8 +163,8 @@ describe('GroupsService', () => {
       });
 
       // Act: Attempt to create group as student user
-      // CRITICAL: This WILL FAIL on unfixed code due to role validation
-      const result = await service.create(createGroupDto);
+      // Pass userId as second parameter (from JWT)
+      const result = await service.create(createGroupDto, mockStudentUser.id_user);
 
       // Assert: Verify expected behavior for enrolled students
       expect(result).toBeDefined();
@@ -200,7 +199,6 @@ describe('GroupsService', () => {
         name: 'Grupo Física',
         description: 'Grupo para estudiar física',
         id_course: 2,
-        owner_id: mockStudentUser.id_user,
       };
 
       const mockCourse = { id_course: 2, name: 'Física I' };
@@ -222,8 +220,8 @@ describe('GroupsService', () => {
       jest.spyOn(prismaService.course, 'findUnique').mockResolvedValue(mockCourse as any);
       jest.spyOn(prismaService, '$transaction').mockResolvedValue(mockCreatedGroup);
 
-      // Act: WILL FAIL on unfixed code, should PASS on fixed code
-      const result = await service.create(createGroupDto);
+      // Act: Pass userId as second parameter
+      const result = await service.create(createGroupDto, mockStudentUser.id_user);
 
       // Assert: Verify group creation succeeds for students
       expect(result).toBeDefined();
@@ -244,13 +242,15 @@ describe('GroupsService', () => {
         name: 'Grupo Química',
         description: 'Grupo para estudiar química',
         id_course: 3,
-        owner_id: mockStudentUser.id_user,
       };
 
       const mockCourse = { id_course: 3, name: 'Química General' };
       const mockCreatedGroup = {
         id_group: 3,
-        ...createGroupDto,
+        name: createGroupDto.name,
+        description: createGroupDto.description,
+        id_course: createGroupDto.id_course,
+        owner_id: mockStudentUser.id_user,
         created_at: new Date(),
         is_direct_message: false,
       };
@@ -268,8 +268,8 @@ describe('GroupsService', () => {
         });
       });
 
-      // Act: WILL FAIL on unfixed code due to role check before these validations
-      await service.create(createGroupDto);
+      // Act: Pass userId as second parameter
+      await service.create(createGroupDto, mockStudentUser.id_user);
 
       // Assert: Verify that business validations are called (not role validation)
       expect(validateMaxGroupsSpy).toHaveBeenCalledWith(mockStudentUser.id_user, createGroupDto.id_course);
@@ -303,13 +303,15 @@ describe('GroupsService', () => {
         name: 'Admin Group',
         description: 'Group created by admin',
         id_course: 1,
-        owner_id: mockAdminUser.id_user,
       };
 
       const mockCourse = { id_course: 1, name: 'Test Course' };
       const mockCreatedGroup = {
         id_group: 10,
-        ...createGroupDto,
+        name: createGroupDto.name,
+        description: createGroupDto.description,
+        id_course: createGroupDto.id_course,
+        owner_id: mockAdminUser.id_user,
         created_at: new Date(),
         is_direct_message: false,
       };
@@ -327,8 +329,8 @@ describe('GroupsService', () => {
         });
       });
 
-      // Act: Should work on both unfixed and fixed code
-      const result = await service.create(createGroupDto);
+      // Act: Pass userId as second parameter
+      const result = await service.create(createGroupDto, mockAdminUser.id_user);
 
       // Assert: Verify admin can create groups
       expect(result).toBeDefined();
@@ -349,13 +351,15 @@ describe('GroupsService', () => {
         name: 'Superadmin Group',
         description: 'Group created by superadmin',
         id_course: 1,
-        owner_id: mockSuperadminUser.id_user,
       };
 
       const mockCourse = { id_course: 1, name: 'Test Course' };
       const mockCreatedGroup = {
         id_group: 20,
-        ...createGroupDto,
+        name: createGroupDto.name,
+        description: createGroupDto.description,
+        id_course: createGroupDto.id_course,
+        owner_id: mockSuperadminUser.id_user,
         created_at: new Date(),
         is_direct_message: false,
       };
@@ -373,8 +377,8 @@ describe('GroupsService', () => {
         });
       });
 
-      // Act: Should work on both unfixed and fixed code
-      const result = await service.create(createGroupDto);
+      // Act: Pass userId as second parameter
+      const result = await service.create(createGroupDto, mockSuperadminUser.id_user);
 
       // Assert: Verify superadmin can create groups
       expect(result).toBeDefined();
