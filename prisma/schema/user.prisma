@@ -11,7 +11,8 @@ model user {
   connections_adressee  connection[]         @relation("ConnectionAdressee")
   connections_requester connection[]         @relation("ConnectionRequester")
   enrollments           enrollment[]
-  groups_owned          group[]
+  groups_owned          group[]              @relation("GroupOwner")
+  groups_pending_owner  group[]              @relation("GroupPendingOwner")
   invitations_received  group_invitation[]   @relation("GroupInvitee")
   invitations_sent      group_invitation[]   @relation("GroupInviter")
   memberships           membership[]

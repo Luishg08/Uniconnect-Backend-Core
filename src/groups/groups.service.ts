@@ -918,8 +918,20 @@ export class GroupsService {
       throw new NotFoundException('No eres miembro de este grupo');
     }
 
-    // No permitir que el owner abandone así
+    // Bloquear salida del owner
     if (membership.group?.owner_id === userId) {
+      // Consulta separada para pending_owner_id (campo nuevo, requiere cliente regenerado)
+      const groupData = await this.prisma.group.findUnique({
+        where: { id_group: groupId },
+        select: { pending_owner_id: true },
+      });
+
+      if (groupData?.pending_owner_id !== null && groupData?.pending_owner_id !== undefined) {
+        throw new BadRequestException(
+          'No puedes abandonar el grupo mientras hay una transferencia de administración pendiente de respuesta.',
+        );
+      }
+
       throw new BadRequestException(
         'El owner no puede abandonar el grupo. Designa a otro admin primero.',
       );
@@ -1096,6 +1108,148 @@ export class GroupsService {
         new_owner_id: newOwnerId,
       };
     });
+  }
+
+  // =====================================================
+  // TRANSFERENCIA DE ADMINISTRACIÓN CON CONFIRMACIÓN (US-W02)
+  // =====================================================
+
+  /**
+   * POST /groups/:id/request-ownership-transfer/:candidateId
+   * El owner solicita transferir la propiedad a un candidato.
+   * Guarda el candidato en pending_owner_id y notifica al candidato.
+   */
+  async requestOwnershipTransfer(groupId: number, candidateId: number, currentUserId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { id_group: true, owner_id: true, is_direct_message: true, name: true, pending_owner_id: true },
+    });
+
+    if (!group) throw new NotFoundException('Grupo no encontrado');
+    if (group.is_direct_message) throw new BadRequestException('No puedes transferir propiedad de un chat privado');
+    if (group.owner_id !== currentUserId) throw new ForbiddenException('Solo el propietario puede iniciar una transferencia');
+    if (candidateId === currentUserId) throw new BadRequestException('No puedes transferirte la propiedad a ti mismo');
+    if (group.pending_owner_id !== null) throw new BadRequestException('Ya existe una transferencia pendiente para este grupo. Cancélala antes de iniciar una nueva');
+
+    // Verificar que el candidato es miembro del grupo
+    const candidateMembership = await this.prisma.membership.findUnique({
+      where: { id_user_id_group: { id_user: candidateId, id_group: groupId } },
+    });
+    if (!candidateMembership) throw new BadRequestException('El candidato debe ser miembro del grupo');
+
+    const candidate = await this.prisma.user.findUnique({
+      where: { id_user: candidateId },
+      select: { id_user: true, full_name: true, email: true },
+    });
+    if (!candidate) throw new NotFoundException('El candidato no existe');
+
+    const updatedGroup = await this.prisma.group.update({
+      where: { id_group: groupId },
+      data: { pending_owner_id: candidateId },
+      select: { id_group: true, name: true, owner_id: true, pending_owner_id: true },
+    });
+
+    // Notificar al candidato vía evento (el gateway de notificaciones lo procesa)
+    this.eventEmitter.emit('group.ownership_transfer_requested', {
+      id_group: groupId,
+      group_name: group.name ?? 'Grupo',
+      current_owner_id: currentUserId,
+      candidate_id: candidateId,
+      candidate_name: candidate.full_name,
+    });
+
+    return {
+      message: `Solicitud de transferencia enviada a ${candidate.full_name}. Esperando confirmación.`,
+      group: updatedGroup,
+      candidate,
+    };
+  }
+
+  /**
+   * PATCH /groups/:id/accept-ownership-transfer
+   * El candidato (pending_owner_id) acepta la transferencia.
+   * Ejecuta el cambio de owner y limpia pending_owner_id.
+   */
+  async acceptOwnershipTransfer(groupId: number, currentUserId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { id_group: true, owner_id: true, pending_owner_id: true, name: true, is_direct_message: true },
+    });
+
+    if (!group) throw new NotFoundException('Grupo no encontrado');
+    if (group.is_direct_message) throw new BadRequestException('Operación no válida para chats privados');
+    if (group.pending_owner_id === null) throw new BadRequestException('No hay ninguna transferencia pendiente para este grupo');
+    if (group.pending_owner_id !== currentUserId) throw new ForbiddenException('No eres el candidato designado para recibir la propiedad de este grupo');
+
+    const previousOwnerId = group.owner_id!;
+
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Transferir ownership y limpiar pending_owner_id
+      const updatedGroup = await tx.group.update({
+        where: { id_group: groupId },
+        data: { owner_id: currentUserId, pending_owner_id: null },
+        include: {
+          owner: { select: { id_user: true, full_name: true, email: true, picture: true } },
+        },
+      });
+
+      // 2. Nuevo owner → is_admin: true
+      await tx.membership.update({
+        where: { id_user_id_group: { id_user: currentUserId, id_group: groupId } },
+        data: { is_admin: true },
+      });
+
+      // 3. Antiguo owner → mantener como admin
+      await tx.membership.update({
+        where: { id_user_id_group: { id_user: previousOwnerId, id_group: groupId } },
+        data: { is_admin: true },
+      });
+
+      this.eventEmitter.emit('group.ownership_transfer_accepted', {
+        id_group: groupId,
+        group_name: group.name ?? 'Grupo',
+        previous_owner_id: previousOwnerId,
+        new_owner_id: currentUserId,
+      });
+
+      return {
+        message: 'Has aceptado la propiedad del grupo exitosamente.',
+        group: updatedGroup,
+        previous_owner_id: previousOwnerId,
+        new_owner_id: currentUserId,
+      };
+    });
+  }
+
+  /**
+   * DELETE /groups/:id/cancel-ownership-transfer
+   * El owner actual cancela la solicitud de transferencia pendiente.
+   */
+  async cancelOwnershipTransfer(groupId: number, currentUserId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { id_group: true, owner_id: true, pending_owner_id: true, name: true },
+    });
+
+    if (!group) throw new NotFoundException('Grupo no encontrado');
+    if (group.owner_id !== currentUserId) throw new ForbiddenException('Solo el propietario puede cancelar la transferencia');
+    if (group.pending_owner_id === null) throw new BadRequestException('No hay ninguna transferencia pendiente para cancelar');
+
+    const cancelledCandidateId = group.pending_owner_id;
+
+    await this.prisma.group.update({
+      where: { id_group: groupId },
+      data: { pending_owner_id: null },
+    });
+
+    this.eventEmitter.emit('group.ownership_transfer_cancelled', {
+      id_group: groupId,
+      group_name: group.name ?? 'Grupo',
+      owner_id: currentUserId,
+      cancelled_candidate_id: cancelledCandidateId,
+    });
+
+    return { message: 'Solicitud de transferencia cancelada.' };
   }
 
   async inviteUser(groupId: number, inviteeId: number, userId: number) {
