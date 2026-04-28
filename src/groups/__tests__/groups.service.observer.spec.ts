@@ -5,11 +5,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { GroupBusinessValidator } from '../validators/group-business.validator';
 import { GroupRepository } from '../repositories/group.repository';
 import { MESSAGE_EVENTS } from '../../messages/events/message.events';
+import { StudyGroupSubject } from '../domain/observer/study-group-subject';
 
 describe('GroupsService - Observer Pattern (Event Emissions)', () => {
   let service: GroupsService;
   let eventEmitter: EventEmitter2;
   let prismaService: PrismaService;
+  let studyGroupSubject: StudyGroupSubject;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -19,6 +21,15 @@ describe('GroupsService - Observer Pattern (Event Emissions)', () => {
           provide: EventEmitter2,
           useValue: {
             emit: jest.fn(),
+          },
+        },
+        {
+          provide: StudyGroupSubject,
+          useValue: {
+            notify: jest.fn(),
+            attach: jest.fn(),
+            detach: jest.fn(),
+            getObserverCount: jest.fn().mockReturnValue(0),
           },
         },
         {

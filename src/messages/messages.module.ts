@@ -9,6 +9,7 @@ import { PrivateChatObserver } from './infrastructure/observers/private-chat.obs
 import { GroupChatObserver } from './infrastructure/observers/group-chat.observer';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MessageRepository } from './message.repository';
+import { ChatSessionManager } from './managers/chat-session.manager';
 
 /**
  * Messages module that provides real-time chat functionality using the Observer pattern.
@@ -27,7 +28,11 @@ import { MessageRepository } from './message.repository';
     PrivateChatObserver,
     GroupChatObserver,
     MessageRepository,
+    {
+      provide: ChatSessionManager,
+      useFactory: () => ChatSessionManager.getInstance(),
+    },
   ],
-  exports: [MessagesService, MessagesServiceUS02, ChatGateway, MessagesGateway, MessageRepository],
+  exports: [MessagesService, MessagesServiceUS02, ChatGateway, MessagesGateway, MessageRepository, ChatSessionManager],
 })
 export class MessagesModule {}
