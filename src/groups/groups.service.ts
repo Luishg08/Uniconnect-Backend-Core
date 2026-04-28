@@ -400,7 +400,7 @@ export class GroupsService {
         throw new NotFoundException('Uno o ambos usuarios no existen');
       }
 
-      // NUEVA VALIDACIÓN: Verificar conexión aceptada
+      // Verificar autorización: conexión aceptada O grupo compartido
       const connection = await this.prisma.connection.findFirst({
         where: {
           OR: [
@@ -410,10 +410,41 @@ export class GroupsService {
         },
       });
 
+      // Si no son amigos, verificar si comparten al menos un grupo
       if (!connection) {
-        throw new ForbiddenException(
-          'Solo puedes crear chats privados con usuarios que sean tus conexiones aceptadas'
-        );
+        // Buscar un grupo (no DM) donde AMBOS usuarios sean miembros.
+        // Se usan dos cláusulas `some` independientes sobre la misma relación
+        // porque id_user es Int? (nullable) y la sintaxis `every` no es segura aquí.
+        const sharedGroup = await this.prisma.group.findFirst({
+          where: {
+            is_direct_message: false,
+            memberships: {
+              some: { id_user: userId1 },
+            },
+            AND: {
+              memberships: {
+                some: { id_user: userId2 },
+              },
+            },
+          },
+          select: { id_group: true },
+        });
+
+        console.log('[DM] Shared group check:', {
+          userId1,
+          userId2,
+          sharedGroupFound: sharedGroup,
+        });
+
+        if (!sharedGroup) {
+          console.warn('[DM] 403 — no connection and no shared group between users', {
+            userId1,
+            userId2,
+          });
+          throw new ForbiddenException(
+            'Solo puedes iniciar un chat privado con tus conexiones o con compañeros de grupo',
+          );
+        }
       }
 
       // Buscar si ya existe un chat privado entre estos dos usuarios

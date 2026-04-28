@@ -390,14 +390,15 @@ export class MessagesGateway
         return { error: 'Usuario no autenticado' };
       }
 
-      const messages = await this.messagesService.findRecentByGroup(
+      const result = await this.messagesService.findRecentByGroup(
         id_group,
         data.limit || 50,
       );
 
       return {
         success: true,
-        messages: messages.reverse(), // Más antiguos primero
+        messages: result.messages, // Ya vienen ordenados (más antiguos primero)
+        hasMore: result.hasMore,
       };
     } catch (error) {
       this.logger.error('Error loading messages:', error);

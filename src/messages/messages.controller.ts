@@ -47,16 +47,19 @@ export class MessagesController {
   /**
    * GET /messages/group/:id_group/recent
    * Obtener mensajes recientes de un grupo (para cargar en UI)
+   * Soporta paginación por cursor: ?beforeId=<id_message>
    */
   @Get('group/:id_group/recent')
-  @ApiOperation({ summary: 'Obtener mensajes recientes de un grupo' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Número de mensajes a cargar' })
-  @ApiResponse({ status: 200, description: 'Lista de mensajes recientes.' })
+  @ApiOperation({ summary: 'Obtener mensajes recientes de un grupo (con cursor)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Número de mensajes a cargar (default 50)' })
+  @ApiQuery({ name: 'beforeId', required: false, type: Number, description: 'Cursor: id_message del mensaje más antiguo ya cargado' })
+  @ApiResponse({ status: 200, description: '{ messages: Message[], hasMore: boolean }' })
   findRecentByGroup(
     @Param('id_group', ParseIntPipe) id_group: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('beforeId', new ParseIntPipe({ optional: true })) beforeId?: number,
   ) {
-    return this.messagesService.findRecentByGroup(id_group, limit || 50);
+    return this.messagesService.findRecentByGroup(id_group, limit || 50, beforeId);
   }
 
   /**

@@ -189,14 +189,27 @@ export class MessageRepository {
     });
   }
 
-  async findRecentByGroup(id_group: number, limit = 50) {
+  async findRecentByGroup(id_group: number, limit = 50, beforeId?: number) {
     const messages = await this.prisma.message.findMany({
-      where: { membership: { id_group } },
+      where: {
+        membership: { id_group },
+        ...(beforeId ? { id_message: { lt: beforeId } } : {}),
+      },
       include: this.membershipInclude,
       orderBy: { send_at: 'desc' },
       take: limit,
     });
-    return messages.reverse(); // Más antiguos primero
+
+    const ordered = messages.reverse(); 
+
+    const oldestId = ordered.length > 0 ? ordered[0].id_message : null;
+    const hasMore = oldestId
+      ? (await this.prisma.message.count({
+          where: { membership: { id_group }, id_message: { lt: oldestId } },
+        })) > 0
+      : false;
+
+    return { messages: ordered, hasMore };
   }
 
   async findByMembership(id_membership: number) {

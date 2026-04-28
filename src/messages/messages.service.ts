@@ -137,9 +137,10 @@ export class MessagesService {
 
   /**
    * Obtener mensajes recientes de un grupo (últimos N mensajes)
+   * Soporta paginación por cursor: beforeId = id_message del más antiguo ya cargado
    */
-  async findRecentByGroup(id_group: number, limit: number = 50) {
-    return this.messageRepository.findRecentByGroup(id_group, limit);
+  async findRecentByGroup(id_group: number, limit: number = 50, beforeId?: number) {
+    return this.messageRepository.findRecentByGroup(id_group, limit, beforeId);
   }
 
   /**
