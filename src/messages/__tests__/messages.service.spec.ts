@@ -98,8 +98,9 @@ describe('MessagesService (US-O02)', () => {
 
       expect(groupChatObserver.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          decorators_applied: expect.arrayContaining(['content-validation']),
+          decorators_applied: expect.any(Array),
           processed_at: expect.any(Date),
+          rendered_content: expect.any(String),
         }),
       );
     });

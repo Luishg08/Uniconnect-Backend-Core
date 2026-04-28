@@ -54,18 +54,55 @@ export class MessagesService {
   }
 
   /**
-   * Apply decorators to the message (placeholder implementation).
-   * TODO: Implement actual decorators (content moderation, spam check, etc.)
+   * Apply decorators to the message using the Decorator pattern.
+   * Instantiates decorator chain based on DTO fields and generates rendered_content.
    * 
    * @param message - The original message
-   * @returns The message with decorator metadata
+   * @returns The message with decorator metadata and rendered_content
    */
   private applyDecorators(message: MessageDto): MessageDto {
-    this.logger.log('Applying decorators (placeholder implementation)');
+    this.logger.log('Applying decorators using Decorator pattern');
+
+    // Import decorator classes
+    const { BaseMessage } = require('../domain/decorator/base-message');
+    const { FileMessageDecorator } = require('../domain/decorator/file-message.decorator');
+    const { MentionMessageDecorator } = require('../domain/decorator/mention-message.decorator');
+    const { ReactionMessageDecorator } = require('../domain/decorator/reaction-message.decorator');
+
+    // Create base message
+    let messageObj = new BaseMessage(
+      message.text_content || '',
+      message.sender_id || 0,
+      message.send_at || new Date(),
+    );
+
+    const decoratorsApplied: string[] = [];
+
+    // Apply file decorator if files present
+    if (message.files && message.files.length > 0) {
+      messageObj = new FileMessageDecorator(messageObj, message.files);
+      decoratorsApplied.push('file-attachment');
+    }
+
+    // Apply mention decorator if mentions present
+    if (message.mentions && message.mentions.length > 0) {
+      messageObj = new MentionMessageDecorator(messageObj, message.mentions);
+      decoratorsApplied.push('user-mention');
+    }
+
+    // Apply reaction decorator if reactions present
+    if (message.reactions && message.reactions.length > 0) {
+      messageObj = new ReactionMessageDecorator(messageObj, message.reactions);
+      decoratorsApplied.push('emoji-reaction');
+    }
+
+    // Generate rendered content
+    const renderedContent = messageObj.render();
 
     return {
       ...message,
-      decorators_applied: ['content-validation', 'content_filter', 'spam_check'],
+      rendered_content: renderedContent,
+      decorators_applied: decoratorsApplied,
       processed_at: new Date(),
     };
   }

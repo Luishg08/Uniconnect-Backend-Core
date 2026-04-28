@@ -1,5 +1,8 @@
-import { IsString, IsBoolean, IsOptional, IsNumber, IsDate, IsIn } from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsNumber, IsDate, IsIn, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { MentionDto } from './mention.dto';
+import { FileAttachmentDto } from './file-attachment.dto';
+import { ReactionDto } from './reaction.dto';
 
 /**
  * Data Transfer Object for chat messages.
@@ -58,4 +61,27 @@ export class MessageDto {
   @IsDate()
   @Type(() => Date)
   processed_at?: Date;
+
+  // Decorator pattern fields
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MentionDto)
+  mentions?: MentionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FileAttachmentDto)
+  files?: FileAttachmentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReactionDto)
+  reactions?: ReactionDto[];
+
+  @IsOptional()
+  @IsString()
+  rendered_content?: string;
 }
