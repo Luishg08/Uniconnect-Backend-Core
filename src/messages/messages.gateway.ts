@@ -255,6 +255,42 @@ export class MessagesGateway
       const roomName = `group-${id_group}`;
       this.server.to(roomName).emit('message:new', messageEvent);
 
+      // ── Detección de menciones ────────────────────────────────────────────
+      const mentionedNames = extractMentions(data.text_content ?? '');
+      if (mentionedNames.length > 0) {
+        // Buscar usuarios del grupo cuyo nombre coincida con las menciones
+        const groupMembers = await this.prisma.membership.findMany({
+          where: { id_group },
+          include: { user: { select: { id_user: true, full_name: true } } },
+        });
+
+        for (const name of mentionedNames) {
+          const match = groupMembers.find(
+            (m) =>
+              m.user &&
+              (m.user.full_name.toLowerCase().startsWith(name.toLowerCase()) ||
+                m.user.full_name.replace(/\s+/g, '').toLowerCase() === name.toLowerCase()),
+          );
+
+          if (match?.user && match.user.id_user !== id_user) {
+            // Emitir evento especial de mención al usuario mencionado
+            this.server.to(roomName).emit('message:mention', {
+              id_message: message.id_message,
+              mentioned_user_id: match.user.id_user,
+              mentioned_name: match.user.full_name,
+              sender_name: messageEvent.sender_name,
+              text_content: data.text_content,
+              id_group,
+              send_at: sendAt,
+            });
+
+            this.logger.log(
+              `Mention detected: @${name} → user ${match.user.id_user} in group ${id_group}`,
+            );
+          }
+        }
+      }
+
       this.logger.log(
         `Message sent to group ${id_group} - User ${client.data.id_user}`,
       );
@@ -682,4 +718,12 @@ export class MessagesGateway
   isUserOnline(userId: number): boolean {
     return this.sessionManager.isUserOnline(userId);
   }
+}
+
+// ── Helper: extrae nombres de menciones del texto ─────────────────────────
+function extractMentions(text: string): string[] {
+  const matches = text.match(/@([\w.\-]+)/g);
+  if (!matches) return [];
+  // Quitar el @ y deduplicar
+  return [...new Set(matches.map((m) => m.slice(1)))];
 }

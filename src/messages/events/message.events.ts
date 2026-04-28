@@ -7,6 +7,7 @@ export const MESSAGE_EVENTS = {
   MESSAGE_SENT: 'message.sent',
   MESSAGE_EDITED: 'message.edited',
   MESSAGE_DELETED: 'message.deleted',
+  MESSAGE_MENTIONED: 'message.mentioned',
 
   // Eventos de usuarios
   USER_JOINED_GROUP: 'user.joined.group',
