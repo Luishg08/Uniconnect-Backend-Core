@@ -4,12 +4,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GroupBusinessValidator } from './validators/group-business.validator';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { StudyGroupSubject } from './domain/observer/study-group-subject';
 
 describe('GroupsService', () => {
   let service: GroupsService;
   let prismaService: PrismaService;
   let groupBusinessValidator: GroupBusinessValidator;
   let eventEmitter: EventEmitter2;
+  let studyGroupSubject: StudyGroupSubject;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -43,6 +45,15 @@ describe('GroupsService', () => {
               findUnique: jest.fn(),
             },
             $transaction: jest.fn(),
+          },
+        },
+        {
+          provide: StudyGroupSubject,
+          useValue: {
+            notify: jest.fn(),
+            attach: jest.fn(),
+            detach: jest.fn(),
+            getObserverCount: jest.fn().mockReturnValue(0),
           },
         },
         {

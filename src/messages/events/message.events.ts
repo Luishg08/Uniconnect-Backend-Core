@@ -31,6 +31,10 @@ export const MESSAGE_EVENTS = {
   GROUP_JOIN_REQUEST_ACCEPTED: 'group.join_request.accepted',
   GROUP_JOIN_REQUEST_REJECTED: 'group.join_request.rejected',
 
+  // Eventos de transferencia de administración
+  ADMIN_TRANSFER_REQUESTED: 'admin.transfer.requested',
+  ADMIN_TRANSFER_ACCEPTED: 'admin.transfer.accepted',
+
   // Eventos de conexiones
   CONNECTION_REQUEST_SENT: 'connection.request.sent',
   CONNECTION_REQUEST_ACCEPTED: 'connection.request.accepted',
@@ -184,6 +188,39 @@ export interface GroupDeletedPayload {
  * Payload para evento de usuario que salió del grupo
  * US-O01: Observer para eventos del grupo de estudio
  */
+export interface UserLeftGroupPayload {
+  id_user: number;
+  user_name: string;
+  id_group: number;
+  group_name: string;
+  left_at: Date;
+}
+
+/**
+ * Payload para evento de transferencia de administración solicitada
+ * US-O01: Observer para eventos del grupo de estudio
+ */
+export interface AdminTransferRequestedPayload {
+  id_group: number;
+  group_name: string;
+  previous_owner_id: number;
+  new_owner_id: number;
+  new_owner_name: string;
+  requested_at: Date;
+}
+
+/**
+ * Payload para evento de transferencia de administración aceptada
+ * US-O01: Observer para eventos del grupo de estudio
+ */
+export interface AdminTransferAcceptedPayload {
+  id_group: number;
+  group_name: string;
+  previous_owner_id: number;
+  new_owner_id: number;
+  new_owner_name: string;
+  accepted_at: Date;
+}
 export interface UserLeftGroupPayload {
   id_user: number;
   user_name: string;

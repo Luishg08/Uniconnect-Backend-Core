@@ -5,6 +5,7 @@ import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { GroupBusinessValidator } from './validators/group-business.validator';
 import { MESSAGE_EVENTS } from '../messages/events/message.events';
+import { StudyGroupSubject } from './domain/observer/study-group-subject';
 
 @Injectable()
 export class GroupsService {
@@ -12,6 +13,7 @@ export class GroupsService {
     private prisma: PrismaService,
     private groupValidator: GroupBusinessValidator,
     private eventEmitter: EventEmitter2,
+    private studyGroupSubject: StudyGroupSubject,
   ) { }
 
   // 1. Crear grupo con validaciones y membresía automática
@@ -607,6 +609,20 @@ export class GroupsService {
           requested_at: joinRequest.requested_at,
         });
 
+        // Notificar al owner mediante Observer pattern
+        this.studyGroupSubject.notify({
+          type: 'JOIN_REQUEST',
+          payload: {
+            id_request: joinRequest.id_request,
+            id_group: groupId,
+            group_name: group.name ?? 'Grupo',
+            requester_id: userId,
+            requester_name: joinRequest.requester?.full_name ?? 'Usuario',
+          },
+          targetUserId: group.owner_id!,
+          timestamp: new Date(),
+        });
+
         return joinRequest;
       } catch (error: unknown) {
         // Manejo defensivo de error P2002 (unique constraint violation)
@@ -792,6 +808,18 @@ export class GroupsService {
       responded_at: new Date(),
     });
 
+    // Notificar al requester mediante Observer pattern
+    this.studyGroupSubject.notify({
+      type: 'MEMBER_ACCEPTED',
+      payload: {
+        id_request: requestId,
+        id_group: groupId,
+        group_name: updatedRequest.group?.name ?? 'Grupo',
+      },
+      targetUserId: request.requester_id,
+      timestamp: new Date(),
+    });
+
     return updatedRequest;
   }
 
@@ -834,6 +862,18 @@ export class GroupsService {
       group_name: rejectedRequest.group?.name ?? 'Grupo',
       requester_id: request.requester_id,
       responded_at: new Date(),
+    });
+
+    // Notificar al requester mediante Observer pattern
+    this.studyGroupSubject.notify({
+      type: 'MEMBER_REJECTED',
+      payload: {
+        id_request: requestId,
+        id_group: groupId,
+        group_name: rejectedRequest.group?.name ?? 'Grupo',
+      },
+      targetUserId: request.requester_id,
+      timestamp: new Date(),
     });
 
     return rejectedRequest;
@@ -1106,8 +1146,22 @@ export class GroupsService {
       throw new BadRequestException('Ya eres el propietario del grupo');
     }
 
+    // Notificar al nuevo owner ANTES de la transferencia (ADMIN_TRANSFER_REQUESTED)
+    this.studyGroupSubject.notify({
+      type: 'ADMIN_TRANSFER_REQUESTED',
+      payload: {
+        id_group: groupId,
+        group_name: group.name ?? 'Grupo',
+        previous_owner_id: currentUserId,
+        new_owner_id: newOwnerId,
+        new_owner_name: newOwner.full_name,
+      },
+      targetUserId: newOwnerId,
+      timestamp: new Date(),
+    });
+
     // Realizar la transferencia en una transacción
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Actualizar el owner del grupo
       const updatedGroup = await tx.group.update({
         where: { id_group: groupId },
@@ -1139,6 +1193,22 @@ export class GroupsService {
         new_owner_id: newOwnerId,
       };
     });
+
+    // Notificar al antiguo owner DESPUÉS de la transferencia exitosa (ADMIN_TRANSFER_ACCEPTED)
+    this.studyGroupSubject.notify({
+      type: 'ADMIN_TRANSFER_ACCEPTED',
+      payload: {
+        id_group: groupId,
+        group_name: group.name ?? 'Grupo',
+        previous_owner_id: currentUserId,
+        new_owner_id: newOwnerId,
+        new_owner_name: newOwner.full_name,
+      },
+      targetUserId: currentUserId,
+      timestamp: new Date(),
+    });
+
+    return result;
   }
 
   // =====================================================
