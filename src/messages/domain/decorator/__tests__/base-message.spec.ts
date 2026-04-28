@@ -36,5 +36,18 @@ describe('BaseMessage', () => {
       const rendered = message.render();
       expect(() => JSON.parse(rendered)).not.toThrow();
     });
+
+    it('should NOT include decorator fields without decorators', () => {
+      const rendered = message.render();
+      const parsed = JSON.parse(rendered);
+      
+      // Positive assertion
+      expect(parsed.text).toBe(textContent);
+      
+      // Negative assertions (AC4)
+      expect(parsed.files).toBeUndefined();
+      expect(parsed.mentions).toBeUndefined();
+      expect(parsed.reactions).toBeUndefined();
+    });
   });
 });
