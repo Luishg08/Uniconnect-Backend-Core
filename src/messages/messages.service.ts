@@ -9,12 +9,17 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { MESSAGE_EVENTS, MessageSentPayload } from './events/message.events';
 import { ContentModeration } from './decorators/content-moderation.decorator';
+import { PrismaService } from '../prisma/prisma.service';
+
+/** Regex para capturar @nombre (letras, números, guiones, puntos) */
+const MENTION_REGEX = /@([\w.\-]+)/g;
 
 @Injectable()
 export class MessagesService {
   constructor(
     private messageRepository: MessageRepository,
     private eventEmitter: EventEmitter2,
+    private prisma: PrismaService,
   ) {}
 
   /**
@@ -41,6 +46,19 @@ export class MessagesService {
         sender_picture: message.membership.user.picture || null,
       };
       this.eventEmitter.emit(MESSAGE_EVENTS.MESSAGE_SENT, payload);
+
+      // Procesar menciones en background (no bloquea la respuesta)
+      if (message.text_content) {
+        this.processMentions(
+          message.text_content,
+          message.membership.group.id_group,
+          message.membership.user.id_user,
+          message.membership.user.full_name,
+          message.id_message,
+        ).catch((err) =>
+          console.error('[MessagesService] Error procesando menciones:', err),
+        );
+      }
     }
 
     return message;
@@ -162,6 +180,126 @@ export class MessagesService {
    */
   async getLastMessage(id_group: number) {
     return this.messageRepository.getLastMessageByGroup(id_group);
+  }
+
+  // ── Menciones ─────────────────────────────────────────────────────────────
+
+  /**
+   * Escanea el texto, valida que los mencionados sean miembros del grupo,
+   * crea la notificación en BD y dispara push si tienen token activo.
+   * Se ejecuta en background — no bloquea la respuesta al cliente.
+   */
+  private async processMentions(
+    text: string,
+    groupId: number,
+    senderId: number,
+    senderName: string,
+    messageId: number,
+  ): Promise<void> {
+    // Extraer nombres únicos mencionados
+    const names = [...new Set([...text.matchAll(MENTION_REGEX)].map((m) => m[1]))];
+    if (names.length === 0) return;
+
+    // Obtener todos los miembros del grupo con su nombre y tokens
+    const memberships = await this.prisma.membership.findMany({
+      where: { id_group: groupId },
+      include: {
+        user: {
+          select: {
+            id_user: true,
+            full_name: true,
+            push_token: {
+              where: { is_active: true },
+              select: { token: true, device_type: true },
+            },
+          },
+        },
+      },
+    });
+
+    for (const name of names) {
+      // Buscar miembro cuyo nombre empiece con la mención (case-insensitive)
+      const match = memberships.find((m) => {
+        if (!m.user) return false;
+        const firstName = m.user.full_name.split(' ')[0];
+        const noSpaces = m.user.full_name.replace(/\s+/g, '');
+        return (
+          firstName.toLowerCase() === name.toLowerCase() ||
+          noSpaces.toLowerCase() === name.toLowerCase()
+        );
+      });
+
+      // No notificar si no existe, no es miembro, o es el propio remitente
+      if (!match?.user || match.user.id_user === senderId) continue;
+
+      const mentionedUser = match.user;
+      const notifMessage = `${senderName} te mencionó en un mensaje`;
+
+      // 1. Guardar notificación en BD — related_entity_id apunta al grupo para navegar directo
+      await this.prisma.notification.create({
+        data: {
+          id_user: mentionedUser.id_user,
+          message: notifMessage,
+          is_read: false,
+          created_at: new Date(),
+          notification_type: 'mention',
+          related_entity_id: groupId,   // id_group para navegar al chat
+          push_sent: false,
+        },
+      });
+
+      // 2. Emitir evento interno (WebSocket puede escucharlo para badge en tiempo real)
+      this.eventEmitter.emit(MESSAGE_EVENTS.MESSAGE_MENTIONED, {
+        id_message: messageId,
+        id_group: groupId,
+        mentioned_user_id: mentionedUser.id_user,
+        sender_name: senderName,
+        text_content: text,
+      });
+
+      // 3. Enviar push notification si tiene tokens activos
+      if (mentionedUser.push_token.length > 0) {
+        await this.sendExpoPush(
+          mentionedUser.push_token.map((t) => t.token),
+          `📣 ${senderName} te mencionó`,
+          text.length > 80 ? text.slice(0, 77) + '...' : text,
+          { type: 'mention', messageId, groupId },
+        );
+
+        // Marcar push_sent en la notificación recién creada
+        await this.prisma.notification.updateMany({
+          where: {
+            id_user: mentionedUser.id_user,
+            related_entity_id: messageId,
+            notification_type: 'mention',
+            push_sent: false,
+          },
+          data: { push_sent: true },
+        });
+      }
+    }
+  }
+
+  /**
+   * Envía push notifications via Expo Push API.
+   * Usa fetch nativo para no añadir dependencias.
+   */
+  private async sendExpoPush(
+    tokens: string[],
+    title: string,
+    body: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const messages = tokens.map((to) => ({ to, title, body, data, sound: 'default' }));
+    try {
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(messages),
+      });
+    } catch (err) {
+      console.error('[MessagesService] Error enviando push:', err);
+    }
   }
 }
 
