@@ -1,9 +1,12 @@
-import { Controller, Post, Get, Body, UseInterceptors, UploadedFiles, UseGuards, Req, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseInterceptors, UploadedFiles, UseGuards, Req, Param, ParseIntPipe, Inject } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
 import { MessagesGateway } from '../messages/messages.gateway';
 import { MessageRepository } from '../messages/message.repository';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('files')
 export class FilesController {
@@ -11,6 +14,8 @@ export class FilesController {
     private readonly filesService: FilesService,
     private readonly messagesGateway: MessagesGateway,
     private readonly messageRepository: MessageRepository,
+    @Inject(S3Client) private readonly s3Client: S3Client,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -46,7 +51,8 @@ export class FilesController {
     const fullMessage = await this.messageRepository.findById(result.messageId);
 
     if (fullMessage && fullMessage.membership?.user) {
-      // Formatear archivos
+      // Emitir inmediatamente con URL estática — el frontend pide URL presignada al hacer clic
+      // No presignamos aquí para evitar latencia que causa desconexión del socket
       const filesArray = (fullMessage.files || []).map((file: any) => ({
         id_file: file.id_file,
         url: file.url,
@@ -64,6 +70,8 @@ export class FilesController {
         send_at: fullMessage.send_at,
         attachments: fullMessage.attachments || null,
         files: filesArray,
+        sender_name: fullMessage.membership.user.full_name,
+        sender_picture: fullMessage.membership.user.picture ?? null,
         user: {
           id_user: fullMessage.membership.user.id_user,
           full_name: fullMessage.membership.user.full_name,
