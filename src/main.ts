@@ -8,7 +8,7 @@ import * as express from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3000;
+  const port = process.env.PORT || 3000;
   app.setGlobalPrefix('api');
   const config = new DocumentBuilder()
     .setTitle('Uniconnect API')
