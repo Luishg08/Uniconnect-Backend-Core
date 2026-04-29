@@ -372,20 +372,26 @@ export class GroupsController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id/cancel-ownership-transfer')
-  @ApiOperation({
-    summary: 'US-W02: Owner cancela la solicitud de transferencia pendiente',
-    description: 'Devuelve pending_owner_id a null. El owner queda libre de abandonar el grupo si lo desea.',
-  })
-  @ApiResponse({ status: 200, description: 'Transferencia cancelada.' })
-  @ApiResponse({ status: 400, description: 'No hay transferencia pendiente para cancelar.' })
-  @ApiResponse({ status: 403, description: 'Solo el propietario puede cancelar.' })
-  @ApiResponse({ status: 404, description: 'Grupo no encontrado.' })
+  @ApiOperation({ summary: 'US-W02: Owner cancela la solicitud de transferencia pendiente' })
   cancelOwnershipTransfer(
     @Param('id', ParseIntPipe) groupId: number,
     @GetClaim('sub') userId: number,
   ) {
     const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
     return this.groupsService.cancelOwnershipTransfer(groupId, numericUserId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id/decline-ownership-transfer')
+  @ApiOperation({ summary: 'US-W02: Candidato declina la propuesta de transferencia' })
+  @ApiResponse({ status: 200, description: 'Transferencia declinada.' })
+  @ApiResponse({ status: 403, description: 'Solo el candidato designado puede declinar.' })
+  declineOwnershipTransfer(
+    @Param('id', ParseIntPipe) groupId: number,
+    @GetClaim('sub') userId: number,
+  ) {
+    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    return this.groupsService.declineOwnershipTransfer(groupId, numericUserId);
   }
 
   @UseGuards(JwtAuthGuard, GroupOwnershipGuard)
