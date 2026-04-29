@@ -1,0 +1,2 @@
+# Anular .dockerignore y permitir que flyctl envíe todos los archivos al constructor.
+!*
