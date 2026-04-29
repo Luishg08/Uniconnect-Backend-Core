@@ -386,12 +386,12 @@ export class MessagesGateway
   /**
    * Usuario escribiendo (indicador de escritura)
    * Evento: 'user:typing'
-   * Datos: { id_user, is_typing }
+   * Datos: { id_user, full_name, is_typing }
    */
   @SubscribeMessage('user:typing')
   handleUserTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { is_typing: boolean },
+    @MessageBody() data: { is_typing: boolean; full_name?: string },
   ) {
     const id_group = client.data.id_group as number;
     const id_user = client.data.id_user as number;
@@ -400,9 +400,13 @@ export class MessagesGateway
       return { error: 'Usuario no autenticado' };
     }
 
+    // Usar full_name del payload o caer en el userName guardado en la sesión del socket
+    const full_name: string = data.full_name ?? (client.data.userName as string) ?? 'Usuario';
+
     const roomName = `group-${id_group}`;
     this.server.to(roomName).emit('user:typing', {
       id_user,
+      full_name,
       is_typing: data.is_typing,
     });
 
