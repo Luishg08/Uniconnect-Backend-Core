@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -576,6 +576,26 @@ export class GroupsService {
         throw new BadRequestException('Ya eres miembro de este grupo');
       }
 
+      // Idempotencia: verificar si ya existe una solicitud pendiente
+      const existingPendingRequest = await this.prisma.group_join_request.findFirst({
+        where: { id_group: groupId, requester_id: userId, status: 'pending' },
+      });
+
+      if (existingPendingRequest) {
+        throw new BadRequestException('Ya tienes una solicitud de acceso pendiente para este grupo');
+      }
+
+      // Exclusión mutua: verificar si ya existe una invitación activa para el usuario
+      const activeInvitation = await this.prisma.group_invitation.findFirst({
+        where: { id_group: groupId, invitee_id: userId, status: 'pending' },
+      });
+
+      if (activeInvitation) {
+        throw new BadRequestException(
+          'Ya tienes una invitación pendiente para este grupo. Acepta o rechaza la invitación antes de solicitar acceso.',
+        );
+      }
+
       // Crear o actualizar solicitud con manejo defensivo de P2002
       try {
         const joinRequest = await this.prisma.group_join_request.upsert({
@@ -583,7 +603,7 @@ export class GroupsService {
           create: {
             id_group: groupId,
             requester_id: userId,
-            status: 'pending  ',
+            status: 'pending',
           },
           update: {
             status: 'pending',
@@ -1179,11 +1199,11 @@ export class GroupsService {
         data: { is_admin: true },
       });
 
-      // 3. Opcional: Mantener al antiguo owner como admin o convertirlo en miembro regular
-      // Por ahora lo mantenemos como admin
+      // 3. El antiguo owner queda como miembro regular (no admin)
+      // ya que va a salir del grupo inmediatamente después
       await tx.membership.update({
         where: { id_user_id_group: { id_user: currentUserId, id_group: groupId } },
-        data: { is_admin: true },
+        data: { is_admin: false },
       });
 
       return {
@@ -1230,7 +1250,7 @@ export class GroupsService {
     if (group.is_direct_message) throw new BadRequestException('No puedes transferir propiedad de un chat privado');
     if (group.owner_id !== currentUserId) throw new ForbiddenException('Solo el propietario puede iniciar una transferencia');
     if (candidateId === currentUserId) throw new BadRequestException('No puedes transferirte la propiedad a ti mismo');
-    if (group.pending_owner_id !== null) throw new BadRequestException('Ya existe una transferencia pendiente para este grupo. Cancélala antes de iniciar una nueva');
+    if (group.pending_owner_id !== null) throw new ConflictException('Ya existe una solicitud de transferencia en curso para este grupo. Cancélala antes de iniciar una nueva.');
 
     // Verificar que el candidato es miembro del grupo
     const candidateMembership = await this.prisma.membership.findUnique({
@@ -1250,7 +1270,21 @@ export class GroupsService {
       select: { id_group: true, name: true, owner_id: true, pending_owner_id: true },
     });
 
-    // Notificar al candidato vía evento (el gateway de notificaciones lo procesa)
+    // Notificar al candidato vía studyGroupSubject (dispara persistencia en DB + push Expo)
+    this.studyGroupSubject.notify({
+      type: 'ADMIN_TRANSFER_REQUESTED',
+      payload: {
+        id_group: groupId,
+        group_name: group.name ?? 'Grupo',
+        current_owner_id: currentUserId,
+        candidate_id: candidateId,
+        candidate_name: candidate.full_name,
+      },
+      targetUserId: candidateId,
+      timestamp: new Date(),
+    });
+
+    // Mantener el emit del eventEmitter para compatibilidad con otros listeners futuros
     this.eventEmitter.emit('group.ownership_transfer_requested', {
       id_group: groupId,
       group_name: group.name ?? 'Grupo',
@@ -1300,10 +1334,9 @@ export class GroupsService {
         data: { is_admin: true },
       });
 
-      // 3. Antiguo owner → mantener como admin
-      await tx.membership.update({
+      // 3. Sacar al antiguo owner del grupo (quería abandonar, por eso inició la transferencia)
+      await tx.membership.delete({
         where: { id_user_id_group: { id_user: previousOwnerId, id_group: groupId } },
-        data: { is_admin: true },
       });
 
       this.eventEmitter.emit('group.ownership_transfer_accepted', {
@@ -1351,6 +1384,36 @@ export class GroupsService {
     });
 
     return { message: 'Solicitud de transferencia cancelada.' };
+  }
+
+  /**
+   * El candidato declina la transferencia de ownership.
+   * DELETE /groups/:id/decline-ownership-transfer
+   * Solo el candidato (pending_owner_id) puede llamar este endpoint.
+   */
+  async declineOwnershipTransfer(groupId: number, currentUserId: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id_group: groupId },
+      select: { id_group: true, owner_id: true, pending_owner_id: true, name: true },
+    });
+
+    if (!group) throw new NotFoundException('Grupo no encontrado');
+    if (group.pending_owner_id === null) throw new BadRequestException('No hay ninguna transferencia pendiente');
+    if (group.pending_owner_id !== currentUserId) throw new ForbiddenException('Solo el candidato designado puede declinar la transferencia');
+
+    await this.prisma.group.update({
+      where: { id_group: groupId },
+      data: { pending_owner_id: null },
+    });
+
+    this.eventEmitter.emit('group.ownership_transfer_declined', {
+      id_group: groupId,
+      group_name: group.name ?? 'Grupo',
+      owner_id: group.owner_id,
+      declined_by: currentUserId,
+    });
+
+    return { message: 'Transferencia declinada.' };
   }
 
   async inviteUser(groupId: number, inviteeId: number, userId: number) {
@@ -1454,6 +1517,18 @@ export class GroupsService {
     const isMember = !!userMembership;
     const isAdmin = userMembership?.is_admin || false;
 
+    // Verificar si el usuario tiene una solicitud pendiente
+    const pendingRequest = !isMember ? await this.prisma.group_join_request.findFirst({
+      where: { id_group: groupId, requester_id: userId, status: 'pending' },
+      select: { id_request: true },
+    }) : null;
+
+    // Verificar si el usuario tiene una invitación activa (exclusión mutua con join request)
+    const activeInvitation = !isMember ? await this.prisma.group_invitation.findFirst({
+      where: { id_group: groupId, invitee_id: userId, status: 'pending' },
+      select: { id_invitation: true },
+    }) : null;
+
     return {
       ...group,
       userRole: isOwner ? 'owner' : isAdmin ? 'admin' : isMember ? 'member' : 'none',
@@ -1463,6 +1538,8 @@ export class GroupsService {
       canManage: isOwner || isAdmin,
       canInvite: isOwner,
       canManageMembers: isOwner,
+      hasPendingRequest: !!pendingRequest,
+      hasActiveInvitation: !!activeInvitation,
     };
   }
 
