@@ -583,7 +583,7 @@ export class GroupsService {
           create: {
             id_group: groupId,
             requester_id: userId,
-            status: 'pending  ',
+            status: 'pending',
           },
           update: {
             status: 'pending',
@@ -1179,11 +1179,11 @@ export class GroupsService {
         data: { is_admin: true },
       });
 
-      // 3. Opcional: Mantener al antiguo owner como admin o convertirlo en miembro regular
-      // Por ahora lo mantenemos como admin
+      // 3. El antiguo owner queda como miembro regular (no admin)
+      // ya que va a salir del grupo inmediatamente después
       await tx.membership.update({
         where: { id_user_id_group: { id_user: currentUserId, id_group: groupId } },
-        data: { is_admin: true },
+        data: { is_admin: false },
       });
 
       return {
@@ -1454,6 +1454,12 @@ export class GroupsService {
     const isMember = !!userMembership;
     const isAdmin = userMembership?.is_admin || false;
 
+    // Verificar si el usuario tiene una solicitud pendiente
+    const pendingRequest = !isMember ? await this.prisma.group_join_request.findFirst({
+      where: { id_group: groupId, requester_id: userId, status: 'pending' },
+      select: { id_request: true },
+    }) : null;
+
     return {
       ...group,
       userRole: isOwner ? 'owner' : isAdmin ? 'admin' : isMember ? 'member' : 'none',
@@ -1463,6 +1469,7 @@ export class GroupsService {
       canManage: isOwner || isAdmin,
       canInvite: isOwner,
       canManageMembers: isOwner,
+      hasPendingRequest: !!pendingRequest,
     };
   }
 
