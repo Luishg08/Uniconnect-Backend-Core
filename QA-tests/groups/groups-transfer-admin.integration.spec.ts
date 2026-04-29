@@ -20,7 +20,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -34,6 +34,7 @@ import { StudyGroupSubject } from 'src/groups/domain/observer/study-group-subjec
 import { JwtStrategy } from 'src/auth/strategies/jwt.strategy';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
+import { ConfigService } from '@nestjs/config';
 import {
   QA_JWT_SECRET,
   createConfigServiceMock,
@@ -120,12 +121,9 @@ async function buildApp(prismaMock: ReturnType<typeof createPrismaMock>) {
       { provide: EventEmitter2, useValue: eventEmitterMock },
       { provide: StudyGroupSubject, useValue: studyGroupSubjectMock },
       { provide: UsersService, useValue: usersServiceMock },
-      { provide: 'ConfigService', useValue: createConfigServiceMock() },
+      { provide: ConfigService, useValue: createConfigServiceMock() },
     ],
-  })
-    .overrideProvider('ConfigService')
-    .useValue(createConfigServiceMock())
-    .compile();
+  }).compile();
 
   const app = module.createNestApplication();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 
@@ -11,6 +11,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { RolesService } from 'src/roles/roles.service';
 import { PermissionsService } from 'src/permissions/permissions.service';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { QA_JWT_SECRET, createConfigServiceMock } from '../helpers/jwt-test.helper';
 
@@ -79,11 +80,9 @@ async function buildApp(): Promise<{
       { provide: PermissionsService, useValue: permissionsServiceMock },
       { provide: HttpService, useValue: {} },
       { provide: 'CONFIG_OPTIONS', useValue: {} },
+      { provide: ConfigService, useValue: createConfigServiceMock() },
     ],
-  })
-    .overrideProvider('ConfigService')
-    .useValue(createConfigServiceMock())
-    .compile();
+  }).compile();
 
   const app = module.createNestApplication();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

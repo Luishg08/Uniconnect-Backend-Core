@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -14,6 +14,7 @@ import { JwtStrategy } from 'src/auth/strategies/jwt.strategy';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { StudyGroupSubject } from 'src/groups/domain/observer/study-group-subject';
+import { ConfigService } from '@nestjs/config';
 import {
   QA_JWT_SECRET,
   createConfigServiceMock,
@@ -57,7 +58,11 @@ function createPrismaMock() {
   return {
     user: { findUnique: jest.fn(), findFirst: jest.fn() },
     course: { findUnique: jest.fn() },
-    group: { findUnique: jest.fn(), count: jest.fn(), create: jest.fn() },
+    group: {
+      findUnique: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn().mockResolvedValue(mockGrupo),
+    },
     membership: { findUnique: jest.fn(), create: jest.fn() },
     enrollment: { findFirst: jest.fn() },
     notification: { create: jest.fn().mockResolvedValue({}) },
@@ -82,15 +87,20 @@ async function buildApp(prismaMock: ReturnType<typeof createPrismaMock>) {
       { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       { provide: StudyGroupSubject, useValue: { notify: jest.fn(), attach: jest.fn(), detach: jest.fn() } },
       { provide: UsersService, useValue: { findBlacklistedToken: jest.fn().mockResolvedValue(null) } },
-      { provide: 'ConfigService', useValue: createConfigServiceMock() },
+      {
+        provide: ConfigService,
+        useValue: createConfigServiceMock()
+      },
     ],
   })
-    .overrideProvider('ConfigService')
-    .useValue(createConfigServiceMock())
     .compile();
 
   const app = module.createNestApplication();
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true
+  }));
   await app.init();
 
   return app;

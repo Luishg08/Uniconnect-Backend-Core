@@ -24,7 +24,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 
@@ -33,6 +33,7 @@ import { NotificationsService } from 'src/notifications/notifications.service';
 import { JwtStrategy } from 'src/auth/strategies/jwt.strategy';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
+import { ConfigService } from '@nestjs/config';
 import {
   QA_JWT_SECRET,
   createConfigServiceMock,
@@ -49,7 +50,7 @@ const mockNotification = {
   id_user: USER_ID,
   message: 'Test notification',
   is_read: false,
-  created_at: new Date().toISOString(),
+  created_at: new Date(),
   notification_type: 'join_request',
   related_entity_id: 1,
 };
@@ -82,11 +83,9 @@ async function buildApp(prismaMock: ReturnType<typeof createPrismaMock>) {
       JwtStrategy,
       { provide: PrismaService, useValue: prismaMock },
       { provide: UsersService, useValue: usersServiceMock },
+      { provide: ConfigService, useValue: createConfigServiceMock() },
     ],
-  })
-    .overrideProvider('ConfigService')
-    .useValue(createConfigServiceMock())
-    .compile();
+  }).compile();
 
   const app = module.createNestApplication();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
@@ -158,9 +157,9 @@ describe('[QA] Notificaciones — contrato', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
 
-    it('should return notifications sorted by created_at desc', async () => {
-      const older = { ...mockNotification, id_notification: 1, created_at: '2026-01-01T00:00:00Z' };
-      const newer = { ...mockNotification, id_notification: 2, created_at: '2026-04-01T00:00:00Z' };
+    it('retorna notificaciones ordenadas por created_at desc', async () => {
+      const older = { ...mockNotification, id_notification: 1, created_at: new Date('2026-01-01') };
+      const newer = { ...mockNotification, id_notification: 2, created_at: new Date('2026-04-01') };
       prisma.notification.findMany.mockResolvedValue([newer, older]);
 
       await request(app.getHttpServer())

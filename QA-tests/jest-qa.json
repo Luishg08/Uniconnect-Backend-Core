@@ -4,16 +4,11 @@
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/QA-tests/**/*.integration.spec.ts"],
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "QA-tests/tsconfig.json" }]
   },
   "moduleNameMapper": {
     "^src/(.*)$": "<rootDir>/src/$1"
   },
   "collectCoverageFrom": ["src/**/*.(t|j)s"],
-  "coverageDirectory": "QA-tests/coverage",
-  "globals": {
-    "ts-jest": {
-      "tsconfig": "QA-tests/tsconfig.json"
-    }
-  }
+  "coverageDirectory": "QA-tests/coverage"
 }

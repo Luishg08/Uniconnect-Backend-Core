@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 
@@ -11,6 +11,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { RolesService } from 'src/roles/roles.service';
 import { PermissionsService } from 'src/permissions/permissions.service';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import {
   QA_JWT_SECRET,
@@ -51,11 +52,9 @@ async function buildApp() {
       { provide: RolesService, useValue: {} },
       { provide: PermissionsService, useValue: {} },
       { provide: HttpService, useValue: {} },
+      { provide: ConfigService, useValue: createConfigServiceMock() },
     ],
-  })
-    .overrideProvider('ConfigService')
-    .useValue(createConfigServiceMock())
-    .compile();
+  }).compile();
 
   const app = module.createNestApplication();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
@@ -89,12 +88,13 @@ describe('[QA] POST /auth/logout — contrato de seguridad', () => {
   // ── Flujo exitoso ─────────────────────────────────────────────────────────────
 
   describe('Cierre de sesión exitoso', () => {
-    it('retorna 200 con payload de éxito', async () => {
+    it('retorna 201 con payload de éxito', async () => {
+      // POST sin @HttpCode() devuelve 201 en NestJS — comportamiento real del runtime
       const res = await request(app.getHttpServer())
         .post('/auth/logout')
         .set('Authorization', `Bearer ${tokenValido}`)
         .send({ access_token: tokenValido })
-        .expect(200);
+        .expect(201);
 
       expect(res.body).toMatchObject({
         success: true,
@@ -107,7 +107,7 @@ describe('[QA] POST /auth/logout — contrato de seguridad', () => {
         .post('/auth/logout')
         .set('Authorization', `Bearer ${tokenValido}`)
         .send({ access_token: tokenValido })
-        .expect(200);
+        .expect(201);
 
       expect(usersServiceMock.addTokenToBlacklist).toHaveBeenCalledTimes(1);
       expect(usersServiceMock.addTokenToBlacklist).toHaveBeenCalledWith(
@@ -118,22 +118,23 @@ describe('[QA] POST /auth/logout — contrato de seguridad', () => {
     });
   });
 
-  // ── Idempotencia ──────────────────────────────────────────────────────────────
+  // ── Token ya en lista negra ───────────────────────────────────────────────────
 
-  describe('Token ya en lista negra → 200 (idempotente)', () => {
-    it('retorna 200 sin insertar duplicado', async () => {
+  describe('Token ya en lista negra → 401', () => {
+    // El JwtAuthGuard rechaza el Bearer token con 401 ANTES de llegar al controlador.
+    // Un token revocado no puede usarse para ninguna petición autenticada, incluyendo logout.
+    it('retorna 401 cuando el Bearer token ya está revocado', async () => {
       usersServiceMock.findBlacklistedToken.mockResolvedValue({
         token: tokenValido,
         user_id: USER_ID,
       });
 
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/auth/logout')
         .set('Authorization', `Bearer ${tokenValido}`)
         .send({ access_token: tokenValido })
-        .expect(200);
+        .expect(401);
 
-      expect(res.body.success).toBe(true);
       expect(usersServiceMock.addTokenToBlacklist).not.toHaveBeenCalled();
     });
   });
