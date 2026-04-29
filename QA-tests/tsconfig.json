@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "types": ["jest", "node"],
+    "baseUrl": "../",
+    "paths": {
+      "src/*": ["src/*"]
+    },
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "strict": false,
+    "sourceMap": true
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts"]
+}
