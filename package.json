@@ -104,6 +104,9 @@
     "testEnvironment": "node",
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/$1"
-    }
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(.pnpm|@nodable|@aws-sdk)/)"
+    ]
   }
 }
