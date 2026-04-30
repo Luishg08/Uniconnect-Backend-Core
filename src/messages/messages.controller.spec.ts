@@ -75,7 +75,7 @@ describe('MessagesController', () => {
 
       const result = await controller.findRecentByGroup(1, 50);
       expect(Array.isArray(result)).toBe(true);
-      expect(service.findRecentByGroup).toHaveBeenCalledWith(1, 50);
+      expect(service.findRecentByGroup).toHaveBeenCalledWith(1, 50, undefined);
     });
   });
 });

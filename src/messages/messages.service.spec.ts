@@ -3,6 +3,8 @@ import { MessagesService } from './messages.service';
 import { MessageRepository } from './message.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MESSAGE_EVENTS } from './events/message.events';
+import { createPrismaMock } from '../test/mocks/prisma.mock';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -10,6 +12,8 @@ describe('MessagesService', () => {
   let eventEmitter: EventEmitter2;
 
   beforeEach(async () => {
+    const prismaMock = createPrismaMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessagesService,
@@ -35,6 +39,10 @@ describe('MessagesService', () => {
           useValue: {
             emit: jest.fn(),
           },
+        },
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
       ],
     }).compile();
@@ -192,7 +200,7 @@ describe('MessagesService', () => {
 
       const result = await service.findRecentByGroup(1, 50);
       expect(Array.isArray(result)).toBe(true);
-      expect(messageRepository.findRecentByGroup).toHaveBeenCalledWith(1, 50);
+      expect(messageRepository.findRecentByGroup).toHaveBeenCalledWith(1, 50, undefined);
     });
   });
 
