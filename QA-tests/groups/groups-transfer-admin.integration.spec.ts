@@ -86,7 +86,7 @@ function createPrismaMock() {
   return {
     user: { findUnique: jest.fn() },
     group: { findUnique: jest.fn(), update: jest.fn() },
-    membership: { findUnique: jest.fn(), update: jest.fn() },
+    membership: { findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
     notification: { create: jest.fn().mockResolvedValue({ id_notification: 1 }) },
     $transaction: jest.fn(),
   };
