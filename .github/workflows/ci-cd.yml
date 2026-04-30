@@ -29,13 +29,13 @@ jobs:
         run: npx prisma generate
 
       - name: Ejecutar tests
-        run: pnpm test --passWithNoTests
+        run: npx jest --config QA-tests/jest-qa.json
 
   deploy:
     name: Deploy a Fly.io
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
     concurrency: deploy-group
     steps:
       - uses: actions/checkout@v4

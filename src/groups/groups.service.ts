@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -1250,7 +1250,7 @@ export class GroupsService {
     if (group.is_direct_message) throw new BadRequestException('No puedes transferir propiedad de un chat privado');
     if (group.owner_id !== currentUserId) throw new ForbiddenException('Solo el propietario puede iniciar una transferencia');
     if (candidateId === currentUserId) throw new BadRequestException('No puedes transferirte la propiedad a ti mismo');
-    if (group.pending_owner_id !== null) throw new ConflictException('Ya existe una solicitud de transferencia en curso para este grupo. Cancélala antes de iniciar una nueva.');
+    if (group.pending_owner_id !== null) throw new BadRequestException('Ya existe una solicitud de transferencia en curso para este grupo. Cancélala antes de iniciar una nueva.');
 
     // Verificar que el candidato es miembro del grupo
     const candidateMembership = await this.prisma.membership.findUnique({
@@ -1334,9 +1334,10 @@ export class GroupsService {
         data: { is_admin: true },
       });
 
-      // 3. Sacar al antiguo owner del grupo (quería abandonar, por eso inició la transferencia)
-      await tx.membership.delete({
+      // 3. Antiguo owner → pasa a admin (permanece en el grupo)
+      await tx.membership.update({
         where: { id_user_id_group: { id_user: previousOwnerId, id_group: groupId } },
+        data: { is_admin: true },
       });
 
       this.eventEmitter.emit('group.ownership_transfer_accepted', {

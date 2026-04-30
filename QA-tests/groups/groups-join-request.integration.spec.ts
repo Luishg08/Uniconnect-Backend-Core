@@ -94,8 +94,12 @@ function createPrismaMock() {
     membership: { findUnique: jest.fn(), create: jest.fn() },
     group_join_request: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       upsert: jest.fn(),
       update: jest.fn(),
+    },
+    group_invitation: {
+      findFirst: jest.fn(),
     },
     notification: { create: jest.fn().mockResolvedValue({}) },
     $transaction: jest.fn(),
