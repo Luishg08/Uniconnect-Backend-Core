@@ -1334,10 +1334,8 @@ export class GroupsService {
         data: { is_admin: true },
       });
 
-      // 3. Antiguo owner → pasa a admin (permanece en el grupo)
-      await tx.membership.update({
+      await tx.membership.delete({
         where: { id_user_id_group: { id_user: previousOwnerId, id_group: groupId } },
-        data: { is_admin: true },
       });
 
       this.eventEmitter.emit('group.ownership_transfer_accepted', {
