@@ -89,6 +89,7 @@ export class PersistenceNotificationObserver
     const groupName = (payload.group_name as string) || 'Grupo';
     const requesterName = (payload.requester_name as string) || 'Usuario';
     const newOwnerName = (payload.new_owner_name as string) || 'Usuario';
+    const memberName = (payload.member_name as string) || 'Un miembro';
 
     switch (type) {
       case 'JOIN_REQUEST':
@@ -97,6 +98,10 @@ export class PersistenceNotificationObserver
         return `Tu solicitud para unirte a '${groupName}' fue aceptada`;
       case 'MEMBER_REJECTED':
         return `Tu solicitud para unirte a '${groupName}' fue rechazada`;
+      case 'MEMBER_LEFT':
+        return `${memberName} abandonó el grupo '${groupName}'`;
+      case 'MEMBER_REMOVED':
+        return `Has sido eliminado del grupo '${groupName}'`;
       case 'ADMIN_TRANSFER_REQUESTED':
         return `Te han propuesto como administrador del grupo: ${groupName}`;
       case 'ADMIN_TRANSFER_ACCEPTED':
@@ -205,6 +210,8 @@ export class PersistenceNotificationObserver
         return '📥 Nueva solicitud de acceso';
       case 'MEMBER_ACCEPTED':
         return '✅ Solicitud aceptada';
+      case 'MEMBER_REMOVED':
+        return '🚫 Fuiste eliminado del grupo';
       case 'ADMIN_TRANSFER_REQUESTED':
         return '🛡️ Invitación de Administración';
       default:

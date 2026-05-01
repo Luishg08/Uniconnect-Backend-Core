@@ -1066,13 +1066,28 @@ export class GroupsService {
       group_name: membership.group?.name || 'Grupo',
       left_at: new Date(),
     });
+
+    // Notificar al owner del grupo que un miembro se fue
+    if (membership.group?.owner_id) {
+      this.studyGroupSubject.notify({
+        type: 'MEMBER_LEFT',
+        payload: {
+          id_group: groupId,
+          group_name: membership.group.name || 'Grupo',
+          member_id: userId,
+          member_name: membership.user?.full_name || 'Usuario',
+        },
+        targetUserId: membership.group.owner_id,
+        timestamp: new Date(),
+      });
+    }
   }
 
   async removeMember(groupId: number, memberId: number, userId: number) {
     // Verificar que quien ejecuta es el owner o un admin
     const group = await this.prisma.group.findUnique({
       where: { id_group: groupId },
-      select: { owner_id: true },
+      select: { owner_id: true, name: true },
     });
 
     if (!group || group.owner_id !== userId) {
@@ -1087,9 +1102,22 @@ export class GroupsService {
       throw new NotFoundException('El usuario no es miembro de este grupo');
     }
 
-    return await this.prisma.membership.delete({
+    const deleted = await this.prisma.membership.delete({
       where: { id_user_id_group: { id_user: memberId, id_group: groupId } },
     });
+
+    // Notificar al miembro removido para que actualice su estado de grupos
+    this.studyGroupSubject.notify({
+      type: 'MEMBER_REMOVED',
+      payload: {
+        id_group: groupId,
+        group_name: group.name || 'Grupo',
+      },
+      targetUserId: memberId,
+      timestamp: new Date(),
+    });
+
+    return deleted;
   }
 
   async makeAdmin(groupId: number, memberId: number, userId: number) {
