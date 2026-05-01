@@ -323,7 +323,33 @@ export class GroupsService {
       },
     });
 
-    return groups;
+    if (groups.length === 0) return groups;
+
+    const groupIds = groups.map((g) => g.id_group);
+
+    // Obtener solicitudes de unión pendientes del usuario para estos grupos
+    const pendingJoinRequests = await this.prisma.group_join_request.findMany({
+      where: { id_group: { in: groupIds }, requester_id: userId, status: 'pending' },
+      select: { id_group: true },
+    });
+
+    // Obtener invitaciones pendientes del usuario para estos grupos
+    const pendingInvitations = await this.prisma.group_invitation.findMany({
+      where: { id_group: { in: groupIds }, invitee_id: userId, status: 'pending' },
+      select: { id_group: true },
+    });
+
+    const joinRequestedGroupIds = new Set(pendingJoinRequests.map((r) => r.id_group));
+    const invitedGroupIds = new Set(pendingInvitations.map((i) => i.id_group));
+
+    return groups.map((g) => ({
+      ...g,
+      user_request_status: joinRequestedGroupIds.has(g.id_group)
+        ? 'join_requested'
+        : invitedGroupIds.has(g.id_group)
+        ? 'invited'
+        : 'none',
+    }));
   }
 
   /**

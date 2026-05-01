@@ -41,6 +41,21 @@ export class GroupInvitationsService {
         createDto.id_group,
       );
 
+      // 3b. Exclusión mutua: bloquear invitación si el invitee ya tiene join request pendiente
+      const pendingJoinRequest = await this.prisma.group_join_request.findFirst({
+        where: {
+          id_group: createDto.id_group,
+          requester_id: createDto.invitee_id,
+          status: 'pending',
+        },
+      });
+
+      if (pendingJoinRequest) {
+        throw new BadRequestException(
+          'Este usuario ya tiene una solicitud de unión pendiente para este grupo. No se puede invitar hasta que la solicitud sea resuelta.',
+        );
+      }
+
       // 4. Crear o actualizar la invitación con manejo defensivo de P2002
       try {
         const invitation = await this.prisma.group_invitation.upsert({
