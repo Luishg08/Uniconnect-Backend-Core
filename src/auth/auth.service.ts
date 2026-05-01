@@ -198,13 +198,13 @@ export class AuthService {
             
             const userProfile = await this.getAuth0UserProfile(tokenResponse.access_token);
             
-            // if (!userProfile.email || !userProfile.email.endsWith('@ucaldas.edu.co')) {
-            //     throw new UnauthorizedException({
-            //         success: false,
-            //         statusCode: 401,
-            //         message: 'Dominio de correo no permitido. Solo se permiten correos @ucaldas.edu.co'
-            //     });
-            // }
+            if (!userProfile.email || !userProfile.email.endsWith('@ucaldas.edu.co')) {
+                throw new UnauthorizedException({
+                    success: false,
+                    statusCode: 401,
+                    message: 'Dominio de correo no permitido. Solo se permiten correos @ucaldas.edu.co'
+                });
+            }
 
             let user = await this.usersService.findByEmail(userProfile.email);
 
