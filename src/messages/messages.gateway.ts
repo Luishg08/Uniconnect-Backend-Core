@@ -193,6 +193,17 @@ export class MessagesGateway
         return { error: 'Usuario no autenticado. Llama a authenticate primero.' };
       }
 
+      // Validar que la membresía sigue activa en BD
+      const activeMembership = await this.prisma.membership.findUnique({
+        where: { id_membership: id_membership },
+      });
+
+      if (!activeMembership) {
+        this.logger.warn(`Membresía ${id_membership} ya no existe para user ${id_user}`);
+        client.data = {};
+        return { error: 'Ya no eres miembro de este grupo.' };
+      }
+
       // Crear DTO con el id_membership correcto de la sesión
       const createMessageDto = {
         id_membership: id_membership,
