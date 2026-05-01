@@ -42,6 +42,32 @@ export class WebSocketNotificationObserver
       return;
     }
 
+    // When a member is removed or left voluntarily, force them out of the group room
+    if (type === 'MEMBER_REMOVED') {
+      const idGroup = event.payload.id_group as number;
+      const roomName = `group-${idGroup}`;
+
+      userSockets.forEach((socketId) => {
+        try {
+          this.chatGateway.server.in(socketId).socketsLeave(roomName);
+          this.sessionManager.leaveGroupRoom(idGroup, socketId);
+          this.chatGateway.server.to(socketId).emit('group:access_revoked', {
+            id_group: idGroup,
+            group_name: event.payload.group_name,
+          });
+          this.logger.log(
+            `Removed socket ${socketId} from room ${roomName} for user ${targetUserId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to remove socket ${socketId} from room ${roomName}: ${error.message}`,
+            error.stack,
+          );
+        }
+      });
+      return;
+    }
+
     // Emit to all user's sockets (multiple devices)
     userSockets.forEach((socketId) => {
       try {

@@ -1081,6 +1081,17 @@ export class GroupsService {
         timestamp: new Date(),
       });
     }
+
+    // Notificar al miembro que se fue para que actualice su lista de grupos
+    this.studyGroupSubject.notify({
+      type: 'MEMBER_REMOVED',
+      payload: {
+        id_group: groupId,
+        group_name: membership.group?.name || 'Grupo',
+      },
+      targetUserId: userId,
+      timestamp: new Date(),
+    });
   }
 
   async removeMember(groupId: number, memberId: number, userId: number) {
