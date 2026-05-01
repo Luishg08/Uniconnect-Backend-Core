@@ -8,4 +8,6 @@ model notification {
   notification_type String?
   push_sent         Boolean   @default(false)
   user              user?     @relation(fields: [id_user], references: [id_user])
+
+  @@index([id_user, created_at(sort: Desc), notification_type, related_entity_id], map: "idx_notification_dedup")
 }

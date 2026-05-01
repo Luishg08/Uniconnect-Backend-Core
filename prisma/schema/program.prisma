@@ -2,6 +2,6 @@ model program {
   id_program Int      @id @default(autoincrement())
   name       String?  @db.VarChar
   courses    course[]
-  users      user[]
   events     event[]
+  users      user[]
 }
