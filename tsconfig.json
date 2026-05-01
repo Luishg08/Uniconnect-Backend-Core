@@ -24,6 +24,6 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "useUnknownInCatchVariables": false,
-    "types": ["jest", "node"]
+    "types": ["jest", "node", "express", "multer"]
   }
 }

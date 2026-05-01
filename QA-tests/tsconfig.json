@@ -3,7 +3,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "target": "ES2022",
-    "types": ["jest", "node"],
+    "types": ["jest", "node", "express", "multer"],
     "baseUrl": "../",
     "paths": {
       "src/*": ["src/*"]

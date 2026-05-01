@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
+import type { Express } from 'express';
 
 @Controller('files')
 export class FilesController {

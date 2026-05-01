@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand, HeadBucketCommand, GetObjectCommand } from 
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import type { Express } from 'express';
 
 @Injectable()
 export class FilesService {
