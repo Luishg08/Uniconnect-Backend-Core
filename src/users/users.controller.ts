@@ -83,7 +83,7 @@ export class UsersController {
         @GetClaim('sub') userId: number,
         @Param('groupId') groupId: number
     ) {
-        console.log('[CONTROLLER-INVITE] Endpoint llamado con userId:', userId, 'groupId:', groupId);
+        
         return this.usersService.getConnectionsForGroupInvite(userId, groupId);
     }
 

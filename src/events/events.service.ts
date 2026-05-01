@@ -184,11 +184,6 @@ export class EventsService {
 
   async create(createEventDto: CreateEventDto, userId: number): Promise<FENResponse<any>> {
     try {
-      // ⭐ DIAGNOSTIC: Log incoming request
-      console.log('🔍 [EventsService.create] Incoming request:', {
-        userId,
-        dto: createEventDto,
-      });
 
       // 1. Obtener información completa del usuario con rol y programa
       const user = await this.prisma.user.findUnique({
@@ -196,16 +191,8 @@ export class EventsService {
         include: { role: true },
       });
 
-      // ⭐ DIAGNOSTIC: Log user data
-      console.log('🔍 [EventsService.create] User data:', {
-        found: !!user,
-        userId: user?.id_user,
-        role: user?.role?.name,
-        id_program: user?.id_program,
-      });
-
       if (!user) {
-        console.log('❌ [EventsService.create] User not found');
+        
         return this.formatFENResponse(
           false,
           null,
@@ -226,7 +213,7 @@ export class EventsService {
 
       // 2. Validar que el usuario tenga una carrera asignada (excepto superadmin)
       if (!user.id_program && user.role.name !== 'superadmin') {
-        console.log('❌ [EventsService.create] No program assigned');
+        
         return this.formatFENResponse(
           false,
           null,
@@ -247,7 +234,7 @@ export class EventsService {
 
       // 3. Validar permisos según rol
       if (user.role.name === 'student') {
-        console.log('❌ [EventsService.create] User is student');
+        
         return this.formatFENResponse(
           false,
           null,
@@ -278,7 +265,7 @@ export class EventsService {
         created_by: userId,
         id_program: programId,
       };
-      console.log('🔍 [EventsService.create] Event data to insert:', eventData);
+      
 
       // 5. Crear el evento con el program_id asignado automáticamente
       const event = await (this.prisma as any).event.create({
@@ -300,13 +287,6 @@ export class EventsService {
         },
       });
 
-      // ⭐ DIAGNOSTIC: Log created event
-      console.log('✅ [EventsService.create] Event created successfully:', {
-        id: event.id,
-        title: event.title,
-        created_by: event.created_by,
-        id_program: event.id_program,
-      });
 
       return this.formatFENResponse(
         true,

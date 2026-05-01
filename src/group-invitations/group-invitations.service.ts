@@ -191,17 +191,6 @@ export class GroupInvitationsService {
       where: { id_invitation: invitationId },
       include: { group: true },
     });
-
-    console.log('[GroupInvitations Service] Validating invitation', {
-      invitationId,
-      userId,
-      invitation: invitation ? {
-        id_invitation: invitation.id_invitation,
-        invitee_id: invitation.invitee_id,
-        status: invitation.status,
-      } : null,
-    });
-
     if (!invitation) {
       throw new NotFoundException('Invitación no encontrada');
     }
@@ -221,36 +210,15 @@ export class GroupInvitationsService {
       },
     });
 
-    console.log('[GroupInvitations Service] Membership existence check', {
-      invitationId,
-      userId,
-      groupId: invitation.id_group,
-      membershipExists: !!existingMembership,
-      invitationStatus: invitation.status,
-    });
 
     // 3.1. If membership exists, return idempotent success
     if (existingMembership) {
       if (invitation.status === 'accepted') {
-        // Idempotent success - user is already a member
-        console.log('[GroupInvitations Service] Idempotent success - user already member', {
-          invitationId,
-          userId,
-          groupId: invitation.id_group,
-        });
         return {
           message: 'Ya eres miembro de este grupo',
           invitation,
         };
       } else {
-        // Conflict - membership exists but invitation not accepted
-        console.log('[GroupInvitations Service] Inconsistent state detected', {
-          invitationId,
-          userId,
-          groupId: invitation.id_group,
-          invitationStatus: invitation.status,
-          membershipExists: true,
-        });
         throw new BadRequestException(
           'Estado inconsistente detectado: ya eres miembro pero la invitación no está aceptada',
         );
@@ -280,11 +248,6 @@ export class GroupInvitationsService {
     // 5. FIX-15: Process acceptance with atomic transaction
     if (respondDto.status === 'accepted') {
       try {
-        console.log('[GroupInvitations Service] Starting atomic transaction for acceptance', {
-          invitationId,
-          userId,
-          groupId: invitation.id_group,
-        });
 
         // Atomic transaction: both operations succeed or both fail
         const [updatedInvitation, membership] = await this.prisma.$transaction([
@@ -310,12 +273,6 @@ export class GroupInvitationsService {
           }),
         ]);
 
-        console.log('[GroupInvitations Service] Atomic transaction completed successfully', {
-          invitationId,
-          userId,
-          groupId: invitation.id_group,
-          membershipId: membership.id_membership,
-        });
 
         // Emitir evento de invitación aceptada
         this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_INVITATION_ACCEPTED, {
@@ -342,11 +299,6 @@ export class GroupInvitationsService {
       } catch (error: unknown) {
         // FIX-15: Handle race condition (P2002 - unique constraint violation)
         if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-          console.log('[GroupInvitations Service] Race condition detected (P2002), checking membership', {
-            invitationId,
-            userId,
-            groupId: invitation.id_group,
-          });
 
           // Check if membership was created by concurrent request
           const membership = await this.prisma.membership.findFirst({
@@ -357,13 +309,6 @@ export class GroupInvitationsService {
           });
 
           if (membership) {
-            // Idempotent success - membership was created by concurrent request
-            console.log('[GroupInvitations Service] Race condition resolved - membership exists', {
-              invitationId,
-              userId,
-              groupId: invitation.id_group,
-              membershipId: membership.id_membership,
-            });
             return {
               message: 'Ya eres miembro de este grupo',
               invitation,

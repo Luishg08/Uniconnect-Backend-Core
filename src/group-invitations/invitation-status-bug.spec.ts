@@ -130,15 +130,6 @@ describe('FIX-15: Invitation Status Validation Bug Condition', () => {
       const isDescriptiveError = result.message.match(/inconsistente/i);
 
       expect(isRecoverySuccess || isDescriptiveError).toBeTruthy();
-
-      console.log('[FIX-15 Bug Condition] Fix working correctly:', {
-        invitationId,
-        userId,
-        invitationStatus: inconsistentInvitation.status,
-        membershipExists: false,
-        resultMessage: result.message,
-        note: 'Fixed code handled inconsistent state gracefully',
-      });
     });
 
     it('should handle invitation with status="rejected" but no membership', async () => {
@@ -190,25 +181,11 @@ describe('FIX-15: Invitation Status Validation Bug Condition', () => {
         expect(result).toBeDefined();
         expect(result.message).toBeDefined();
 
-        console.log('[FIX-15 Bug Condition] Fix working correctly for rejected invitation:', {
-          invitationId,
-          userId,
-          invitationStatus: inconsistentInvitation.status,
-          membershipExists: false,
-          resultMessage: result.message,
-        });
       } catch (error) {
         // Fixed code might throw BadRequestException for rejected invitations
         // This is acceptable as long as it's the same behavior as before
         expect(error).toBeInstanceOf(BadRequestException);
         expect(error.message).toBe('Esta invitación ya fue respondida anteriormente');
-
-        console.log('[FIX-15 Bug Condition] Rejected invitation handled correctly:', {
-          invitationId,
-          userId,
-          invitationStatus: inconsistentInvitation.status,
-          note: 'Rejected invitations are not recovered - this is expected behavior',
-        });
       }
     });
 
@@ -265,7 +242,7 @@ describe('FIX-15: Invitation Status Validation Bug Condition', () => {
           !testCase.membershipExists;
 
         expect(isBugCondition).toBe(testCase.expectedBugCondition);
-        console.log(`[Bug Condition Test] ${testCase.name}: ${isBugCondition}`);
+        
       });
     });
   });

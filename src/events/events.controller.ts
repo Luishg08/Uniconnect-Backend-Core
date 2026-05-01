@@ -58,12 +58,6 @@ export class EventsController {
     @Body() createEventDto: CreateEventDto,
     @GetClaim('sub') userId: number, // ⭐ FIX: Use 'sub' from JWT payload (standard claim)
   ) {
-    // ⭐ DIAGNOSTIC: Log incoming request at controller level
-    console.log('🔍 [EventsController.create] Incoming request:', {
-      userId,
-      dto: createEventDto,
-      userFromRequest: 'extracted from JWT',
-    });
 
     return this.eventsService.create(createEventDto, userId);
   }

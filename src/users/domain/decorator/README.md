@@ -88,7 +88,6 @@ Adds verification badge to profiles:
 import { BaseProfile } from './base-profile';
 
 const profile = new BaseProfile(1, 'johndoe', 'john@example.com');
-console.log(profile.render());
 // Output: {"userId":1,"username":"johndoe","email":"john@example.com"}
 ```
 
@@ -105,7 +104,7 @@ const verifiedProfile = new VerifiedProfileDecorator(
   'admin@example.com'
 );
 
-console.log(verifiedProfile.render());
+);
 // Output: {
 //   "userId": 1,
 //   "username": "johndoe",
@@ -120,7 +119,7 @@ console.log(verifiedProfile.render());
 
 ```typescript
 const info = verifiedProfile.getBasicInfo();
-console.log(info);
+
 // Output: { userId: 1, username: 'johndoe', email: 'john@example.com' }
 ```
 
@@ -170,7 +169,7 @@ const premiumVerifiedProfile = new PremiumProfileDecorator(
   'gold'
 );
 
-console.log(premiumVerifiedProfile.render());
+);
 // Output includes both verified AND premium fields
 ```
 

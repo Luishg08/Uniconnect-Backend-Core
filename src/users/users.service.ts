@@ -376,7 +376,7 @@ export class UsersService {
     const parsedGroupId = Number(groupId);
 
     // LOG: userId y groupId recibidos
-    console.log('[INVITE-DEBUG] userId:', parsedUserId, 'groupId:', parsedGroupId);
+    
 
     // Obtener el grupo y su curso asociado
     const group = await this.prisma.group.findUnique({
@@ -385,17 +385,17 @@ export class UsersService {
     });
 
     if (!group) {
-      console.log('[INVITE-DEBUG] Grupo no encontrado:', groupId);
+      
       throw new NotFoundException(`Grupo con ID ${groupId} no encontrado`);
     }
 
     if (!group.id_course) {
-      console.log('[INVITE-DEBUG] Grupo sin materia asociada:', groupId);
+      
       throw new NotFoundException(`El grupo no tiene una materia asociada`);
     }
 
     if (group.owner_id !== parsedUserId) {
-      console.log('[INVITE-DEBUG] Usuario no es owner del grupo:', parsedUserId, groupId);
+      
       throw new ForbiddenException(`Solo el owner del grupo puede invitar usuarios`);
     }
 
@@ -416,10 +416,10 @@ export class UsersService {
       },
     });
 
-    console.log('[INVITE-DEBUG] Conexiones aceptadas:', acceptedConnections.length);
+    
 
     if (acceptedConnections.length === 0) {
-      console.log('[INVITE-DEBUG] No hay conexiones aceptadas para el usuario');
+      
       return [];
     }
 
@@ -465,9 +465,6 @@ export class UsersService {
           name: user.enrollments[0].course?.name,
         },
       }));
-
-    console.log('[INVITE-DEBUG] Conexiones con la materia del grupo:', invitables.length);
-    console.log('[INVITE-DEBUG] Respuesta enviada:', JSON.stringify(invitables));
     return invitables;
   }
 

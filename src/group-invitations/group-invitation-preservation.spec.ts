@@ -37,11 +37,6 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
       // Reject invitation - observado que funciona correctamente
       respondToInvitation: jest.fn().mockImplementation(
         async (invitationId: number, userId: number, respondDto: any) => {
-          console.log('[Preservation Mock] respondToInvitation called:', {
-            invitationId,
-            userId,
-            status: respondDto.status,
-          });
 
           // Simular rechazo exitoso
           if (respondDto.status === 'rejected') {
@@ -70,7 +65,6 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
       // Get pending invitations - observado que funciona correctamente
       getPendingInvitations: jest.fn().mockImplementation(
         async (userId: number) => {
-          console.log('[Preservation Mock] getPendingInvitations called:', { userId });
           return [
             {
               id_invitation: 1,
@@ -99,7 +93,7 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
       // Get sent invitations - observado que funciona correctamente
       getSentInvitations: jest.fn().mockImplementation(
         async (userId: number) => {
-          console.log('[Preservation Mock] getSentInvitations called:', { userId });
+          
           return [
             {
               id_invitation: 2,
@@ -126,10 +120,6 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
       // Cancel invitation - observado que funciona correctamente
       cancelInvitation: jest.fn().mockImplementation(
         async (invitationId: number, userId: number) => {
-          console.log('[Preservation Mock] cancelInvitation called:', {
-            invitationId,
-            userId,
-          });
           return {
             message: 'Invitación cancelada exitosamente',
           };
@@ -139,7 +129,7 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
       // Send invitation - observado que funciona correctamente
       sendInvitation: jest.fn().mockImplementation(
         async (createDto: any) => {
-          console.log('[Preservation Mock] sendInvitation called:', createDto);
+          
           return {
             message: 'Invitación enviada exitosamente',
             invitation: {
@@ -203,13 +193,13 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
    */
   describe('Reject Invitation Preservation', () => {
     it('should reject invitation successfully (observed behavior)', async () => {
-      console.log('\n[Preservation] Testing reject invitation');
+      
 
       const response = await request(app.getHttpServer())
         .patch('/group-invitations/1/respond')
         .send({ status: 'rejected' });
 
-      console.log('[Preservation] Reject response:', response.status, response.body);
+      
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('message');
@@ -244,12 +234,12 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
    */
   describe('Get Pending Invitations Preservation', () => {
     it('should get pending invitations successfully (observed behavior)', async () => {
-      console.log('\n[Preservation] Testing get pending invitations');
+      
 
       const response = await request(app.getHttpServer())
         .get('/group-invitations/pending/1');
 
-      console.log('[Preservation] Get pending response:', response.status);
+      
 
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
@@ -285,12 +275,12 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
    */
   describe('Get Sent Invitations Preservation', () => {
     it('should get sent invitations successfully (observed behavior)', async () => {
-      console.log('\n[Preservation] Testing get sent invitations');
+      
 
       const response = await request(app.getHttpServer())
         .get('/group-invitations/sent/1');
 
-      console.log('[Preservation] Get sent response:', response.status);
+      
 
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
@@ -322,12 +312,12 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
    */
   describe('Cancel Invitation Preservation', () => {
     it('should cancel invitation successfully (observed behavior)', async () => {
-      console.log('\n[Preservation] Testing cancel invitation');
+      
 
       const response = await request(app.getHttpServer())
         .delete('/group-invitations/1');
 
-      console.log('[Preservation] Cancel response:', response.status, response.body);
+      
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('message');
@@ -360,7 +350,7 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
    */
   describe('Send Invitation Preservation', () => {
     it('should send invitation successfully (observed behavior)', async () => {
-      console.log('\n[Preservation] Testing send invitation');
+      
 
       const response = await request(app.getHttpServer())
         .post('/group-invitations')
@@ -370,7 +360,7 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
           invitee_id: 2,
         });
 
-      console.log('[Preservation] Send response:', response.status, response.body);
+      
 
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('message');
@@ -411,13 +401,13 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
    */
   describe('DTO Validation Preservation', () => {
     it('should reject invalid status values (observed behavior)', async () => {
-      console.log('\n[Preservation] Testing DTO validation');
+      
 
       const response = await request(app.getHttpServer())
         .patch('/group-invitations/1/respond')
         .send({ status: 'invalid_status' });
 
-      console.log('[Preservation] Invalid status response:', response.status);
+      
 
       expect(response.status).toBe(400);
     });
@@ -430,7 +420,7 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
           extraField: 'should be rejected',
         });
 
-      console.log('[Preservation] Extra field response:', response.status);
+      
 
       expect(response.status).toBe(400);
     });
@@ -495,11 +485,6 @@ describe('GroupInvitations - Preservation Tests (FIX-14)', () => {
               .send({ status: 'rejected' });
             expect(rejectResponse.status).toBe(200);
 
-            console.log('[Preservation] Complete workflow test passed for:', {
-              groupId,
-              inviterId,
-              inviteeId,
-            });
           }
         ),
         { numRuns: 5 } // Ejecutar 5 workflows completos

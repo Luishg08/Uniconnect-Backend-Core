@@ -458,11 +458,6 @@ export class GroupsService {
           select: { id_group: true },
         });
 
-        console.log('[DM] Shared group check:', {
-          userId1,
-          userId2,
-          sharedGroupFound: sharedGroup,
-        });
 
         if (!sharedGroup) {
           console.warn('[DM] 403 — no connection and no shared group between users', {
@@ -643,18 +638,6 @@ export class GroupsService {
           },
         });
 
-        // Emitir evento para notificar al owner del grupo
-        this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
-          id_request: joinRequest.id_request,
-          id_group: groupId,
-          group_name: group.name ?? 'Grupo',
-          owner_id: group.owner_id!,
-          requester_id: userId,
-          requester_name: joinRequest.requester?.full_name ?? 'Usuario',
-          requester_picture: joinRequest.requester?.picture ?? null,
-          requested_at: joinRequest.requested_at,
-        });
-
         // Notificar al owner mediante Observer pattern
         this.studyGroupSubject.notify({
           type: 'JOIN_REQUEST',
@@ -697,18 +680,6 @@ export class GroupsService {
                   select: { id_user: true, full_name: true, picture: true, email: true },
                 },
               },
-            });
-
-            // Emitir evento
-            this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
-              id_request: updated.id_request,
-              id_group: groupId,
-              group_name: group.name ?? 'Grupo',
-              owner_id: group.owner_id!,
-              requester_id: userId,
-              requester_name: updated.requester?.full_name ?? 'Usuario',
-              requester_picture: updated.requester?.picture ?? null,
-              requested_at: updated.requested_at,
             });
 
             return updated;
@@ -844,16 +815,6 @@ export class GroupsService {
       });
     });
 
-    // Notificar al requester que fue aceptado
-    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_ACCEPTED, {
-      id_request: requestId,
-      id_group: groupId,
-      group_name: updatedRequest.group?.name ?? 'Grupo',
-      requester_id: request.requester_id,
-      requester_name: updatedRequest.requester?.full_name ?? 'Usuario',
-      responded_at: new Date(),
-    });
-
     // Notificar al requester mediante Observer pattern
     this.studyGroupSubject.notify({
       type: 'MEMBER_ACCEPTED',
@@ -899,15 +860,6 @@ export class GroupsService {
         responded_at: new Date(),
       },
       include: { group: { select: { name: true } } },
-    });
-
-    // Notificar al requester que fue rechazado
-    this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_REJECTED, {
-      id_request: requestId,
-      id_group: groupId,
-      group_name: rejectedRequest.group?.name ?? 'Grupo',
-      requester_id: request.requester_id,
-      responded_at: new Date(),
     });
 
     // Notificar al requester mediante Observer pattern
@@ -1066,21 +1018,6 @@ export class GroupsService {
       group_name: membership.group?.name || 'Grupo',
       left_at: new Date(),
     });
-
-    // Notificar al owner del grupo que un miembro se fue
-    if (membership.group?.owner_id) {
-      this.studyGroupSubject.notify({
-        type: 'MEMBER_LEFT',
-        payload: {
-          id_group: groupId,
-          group_name: membership.group.name || 'Grupo',
-          member_id: userId,
-          member_name: membership.user?.full_name || 'Usuario',
-        },
-        targetUserId: membership.group.owner_id,
-        timestamp: new Date(),
-      });
-    }
 
     // Notificar al miembro que se fue para que actualice su lista de grupos
     this.studyGroupSubject.notify({

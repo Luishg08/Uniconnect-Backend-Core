@@ -56,14 +56,6 @@ export class GroupInvitationsController {
     @GetClaim('sub') userId: number,
     @Body() respondDto: RespondGroupInvitationDto,
   ) {
-    // FIX-14: Defensive type conversion for JWT user ID
-    // JWT tokens may provide user IDs as strings, but Prisma expects integers
-    console.log('[GroupInvitations] respondToInvitation called', {
-      invitationId: id,
-      userId,
-      userIdType: typeof userId,
-      respondDto,
-    });
 
     // Convert userId to number if it's a string
     const numericUserId = typeof userId === 'string' 
@@ -78,11 +70,6 @@ export class GroupInvitationsController {
       });
       throw new BadRequestException('Invalid user ID from JWT token. Must be a positive integer.');
     }
-
-    console.log('[GroupInvitations] User ID validated successfully', {
-      numericUserId,
-      type: typeof numericUserId,
-    });
 
     try {
       return this.groupInvitationsService.respondToInvitation(
@@ -110,12 +97,6 @@ export class GroupInvitationsController {
     @Param('id', ParseIntPipe) id: number,
     @GetClaim('sub') userId: number,
   ) {
-    // FIX-14: Defensive type conversion for JWT user ID
-    console.log('[GroupInvitations] cancelInvitation called', {
-      invitationId: id,
-      userId,
-      userIdType: typeof userId,
-    });
 
     // Convert userId to number if it's a string
     const numericUserId = typeof userId === 'string' 
@@ -130,11 +111,6 @@ export class GroupInvitationsController {
       });
       throw new BadRequestException('Invalid user ID from JWT token. Must be a positive integer.');
     }
-
-    console.log('[GroupInvitations] User ID validated successfully', {
-      numericUserId,
-      type: typeof numericUserId,
-    });
 
     try {
       return this.groupInvitationsService.cancelInvitation(id, numericUserId);

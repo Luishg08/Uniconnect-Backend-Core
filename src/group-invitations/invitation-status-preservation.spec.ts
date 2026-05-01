@@ -386,7 +386,7 @@ describe('FIX-15: Invitation Status Validation Preservation', () => {
           !scenario.membershipExists;
 
         expect(isBugCondition).toBe(false);
-        console.log(`[Preservation Test] ${scenario.name}: Expected behavior = ${scenario.expectedBehavior}`);
+        
       });
     });
   });

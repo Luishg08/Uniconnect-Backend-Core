@@ -99,12 +99,12 @@ describe('Bug Condition Exploration: TypeScript Compilation Without @types/multe
         expect(result.output).toContain('files.controller.ts');
         
         // Document the counterexample
-        console.log('\n=== COUNTEREXAMPLE FOUND (Bug Condition) ===');
-        console.log('File: files.controller.ts');
-        console.log('Expected: No TS2307 errors for multer');
-        console.log('Actual: Compilation failed with TS2307 errors');
-        console.log('Errors:', result.errors);
-        console.log('==========================================\n');
+        
+        
+        
+        
+        
+        
       }
     });
 
@@ -129,12 +129,12 @@ describe('Bug Condition Exploration: TypeScript Compilation Without @types/multe
         expect(result.output).toContain('files.service.ts');
         
         // Document the counterexample
-        console.log('\n=== COUNTEREXAMPLE FOUND (Bug Condition) ===');
-        console.log('File: files.service.ts');
-        console.log('Expected: No TS2307 errors for multer');
-        console.log('Actual: Compilation failed with TS2307 errors');
-        console.log('Errors:', result.errors);
-        console.log('==========================================\n');
+        
+        
+        
+        
+        
+        
       }
     });
 
@@ -170,12 +170,12 @@ describe('Bug Condition Exploration: TypeScript Compilation Without @types/multe
           expect(combinedOutput).toContain("Cannot find module 'multer'");
           
           // Document the counterexample
-          console.log('\n=== COUNTEREXAMPLE FOUND (Bug Condition) ===');
-          console.log('Command: npm run build');
-          console.log('Expected: Build succeeds');
-          console.log('Actual: Build failed with TypeScript compilation errors');
-          console.log('Error output contains TS2307 for multer module');
-          console.log('==========================================\n');
+          
+          
+          
+          
+          
+          
         } else {
           // If @types/multer is installed but build still fails, re-throw
           throw error;

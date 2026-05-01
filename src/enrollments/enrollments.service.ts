@@ -46,7 +46,7 @@ export class EnrollmentsService {
   }
 
   async remove(userId: number, id_course: number) {
-  console.log('Removing enrollment for userId:', userId, 'and id_course:', id_course);
+  
   const result = await this.prisma.enrollment.deleteMany({
       where: {
         id_user: userId,
