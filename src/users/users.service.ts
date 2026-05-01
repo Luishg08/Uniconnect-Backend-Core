@@ -468,8 +468,9 @@ export class UsersService {
     return invitables;
   }
 
-  async getProfile(userId: number) {
-    return await this.prisma.user.findUnique({
+
+async getProfile(userId: number) {
+    const user = await this.prisma.user.findUnique({
       where: { id_user: userId },
       select: {
         id_user: true,
@@ -485,15 +486,17 @@ export class UsersService {
           },
         },
         program: {
-        select: {
-          name: true,
-          courses: {
-            select: {
-              id_course: true,
+          select: {
+            name: true,
+            courses: {
+              select: {
+                id_course: true,
+                credits: true,
+                type: true,
+              },
             },
           },
         },
-      },
         enrollments: {
           select: {
             status: true,
@@ -501,42 +504,85 @@ export class UsersService {
               select: {
                 id_course: true,
                 name: true,
+                credits: true,
+                type: true,
               },
             },
           },
         },
       },
-    }).then(user => {
-      if (!user) return null;
-
-      const totalCoursesInProgram = user.program?.courses.length || 0;
-      const completedCourses = user.enrollments.filter(
-        e => e.status?.toLowerCase() === 'finished'
-      ).length;
-
-      const progress = totalCoursesInProgram > 0
-        ? Math.round((completedCourses / totalCoursesInProgram) * 100)
-        : 0;
-      return {
-        id: user.id_user,
-        full_name: user.full_name,
-        email: user.email,
-        picture: user.picture,
-        phone: user.cell_phone,
-        program: user.program?.name,
-        progress,
-        current_semester: user.current_semester?.toString(),
-        id_program: user.id_program ?? null,
-        needsOnboarding: user.id_program === null || user.id_program === undefined,
-        roleName: user.role.name,
-        courses: user.enrollments?.map(e => ({
-          id_course: e.course!.id_course,
-          name: e.course!.name,
-          state: e.status,
-        })),
-      };
     });
+
+    if (!user) {
+      return null;
+    }
+
+    // Lógica de cálculo de progreso
+    const allProgramCourses = user.program?.courses || [];
+    
+    // 1. Calcular créditos totales del programa
+    const requiredCredits = allProgramCourses
+      .filter(c => c.type === 'required')
+      .reduce((sum, c) => sum + (c.credits || 0), 0);
+    
+    const totalCreditsInProgram = requiredCredits + 12 + 6 + 6; // deepening + optional + professional
+
+    // 2. Calcular créditos completados por el usuario
+    const finishedEnrollments = user.enrollments.filter(
+      e => e.status?.toLowerCase() === 'finished' && e.course
+    );
+
+    const completedRequiredCredits = finishedEnrollments
+      .filter(e => e.course!.type === 'required')
+      .reduce((sum, e) => sum + (e.course!.credits || 0), 0);
+
+    const completedDeepeningCredits = Math.min(
+      finishedEnrollments
+        .filter(e => e.course!.type === 'deepening')
+        .reduce((sum, e) => sum + (e.course!.credits || 0), 0),
+      12
+    );
+
+    const completedOptionalCredits = Math.min(
+      finishedEnrollments
+        .filter(e => e.course!.type === 'optional')
+        .reduce((sum, e) => sum + (e.course!.credits || 0), 0),
+      6
+    );
+      
+    const completedProfessionalCredits = Math.min(
+      finishedEnrollments
+        .filter(e => e.course!.type === 'professional')
+        .reduce((sum, e) => sum + (e.course!.credits || 0), 0),
+      6
+    );
+
+    const totalCompletedCredits = completedRequiredCredits + completedDeepeningCredits + completedOptionalCredits + completedProfessionalCredits;
+
+    const progress = totalCreditsInProgram > 0
+      ? Math.round((totalCompletedCredits / totalCreditsInProgram) * 100)
+      : 0;
+
+    return {
+      id: user.id_user,
+      full_name: user.full_name,
+      email: user.email,
+      picture: user.picture,
+      phone: user.cell_phone,
+      program: user.program?.name,
+      progress,
+      current_semester: user.current_semester?.toString(),
+      id_program: user.id_program ?? null,
+      needsOnboarding: user.id_program === null || user.id_program === undefined,
+      roleName: user.role.name,
+      courses: user.enrollments?.map(e => ({
+        id_course: e.course!.id_course,
+        name: e.course!.name,
+        state: e.status,
+      })),
+    };
   }
+  
 
   async updateProfile(userId: number, data: ProfileUpdateDto) {
     return (this.prisma.user as any).update({
@@ -572,21 +618,21 @@ export class UsersService {
     });
   }
 
-  async getOtherProfile(requestingUserId: number, profileId: number) {
 
+async getOtherProfile(requestingUserId: number, profileId: number) {
     const requestingUser = await this.prisma.user.findUnique({
       where: { id_user: requestingUserId },
       select: {
         enrollments: {
           where: {
-            status: 'active'
+            status: 'active',
           },
           select: {
             id_course: true,
-          }
+          },
         },
         id_program: true,
-      }
+      },
     });
 
     const activeCourseIds = requestingUser?.enrollments.map(e => e.id_course) || [];
@@ -609,20 +655,29 @@ export class UsersService {
           select: {
             name: true,
             id_program: true,
+            courses: { // <-- Necesario para el cálculo
+              select: {
+                id_course: true,
+                credits: true,
+                type: true,
+              },
+            },
           },
         },
         enrollments: {
           select: {
-            course: {
+            status: true,
+            course: { // <-- Necesario para el cálculo
               select: {
                 id_course: true,
                 name: true,
+                credits: true,
+                type: true,
               },
-            }, 
-            status: true,
-          }
-        }
-      }
+            },
+          },
+        },
+      },
     });
 
     const connectionExists = await this.prisma.connection.findFirst({
@@ -634,12 +689,56 @@ export class UsersService {
       },
     });
 
-
     if (!otherUser) return null;
 
     if (requestingUser?.id_program != otherUser.program?.id_program) {
       return new ForbiddenException('No tienes permiso para ver este perfil').getResponse();
     }
+
+    // --- Inicio de la lógica de progreso ---
+    const allProgramCourses = otherUser.program?.courses || [];
+    
+    const requiredCredits = allProgramCourses
+      .filter(c => c.type === 'required')
+      .reduce((sum, c) => sum + (c.credits || 0), 0);
+    
+    const totalCreditsInProgram = requiredCredits + 12 + 6 + 6; // deepening + optional + professional
+
+    const finishedEnrollments = otherUser.enrollments.filter(
+      e => e.status?.toLowerCase() === 'finished' && e.course
+    );
+
+    const completedRequiredCredits = finishedEnrollments
+      .filter(e => e.course!.type === 'required')
+      .reduce((sum, e) => sum + (e.course!.credits || 0), 0);
+
+    const completedDeepeningCredits = Math.min(
+      finishedEnrollments
+        .filter(e => e.course!.type === 'deepening')
+        .reduce((sum, e) => sum + (e.course!.credits || 0), 0),
+      12
+    );
+
+    const completedOptionalCredits = Math.min(
+      finishedEnrollments
+        .filter(e => e.course!.type === 'optional')
+        .reduce((sum, e) => sum + (e.course!.credits || 0), 0),
+      6
+    );
+      
+    const completedProfessionalCredits = Math.min(
+      finishedEnrollments
+        .filter(e => e.course!.type === 'professional')
+        .reduce((sum, e) => sum + (e.course!.credits || 0), 0),
+      6
+    );
+
+    const totalCompletedCredits = completedRequiredCredits + completedDeepeningCredits + completedOptionalCredits + completedProfessionalCredits;
+
+    const progress = totalCreditsInProgram > 0
+      ? Math.round((totalCompletedCredits / totalCreditsInProgram) * 100)
+      : 0;
+    // --- Fin de la lógica de progreso ---
 
     const commonCourses = otherUser.enrollments
       .filter(e => e.course && activeCourseIds.includes(e.course.id_course))
@@ -656,6 +755,7 @@ export class UsersService {
       picture: otherUser.picture,
       phone: otherUser.cell_phone,
       program: otherUser.program?.name,
+      progress, // <-- Progreso añadido
       current_semester: otherUser.current_semester?.toString(),
       roleName: otherUser.role.name,
       common_courses: commonCourses,

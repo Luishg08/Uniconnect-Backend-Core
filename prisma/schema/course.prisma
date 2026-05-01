@@ -4,5 +4,7 @@ model course {
   id_program  Int?
   program     program?     @relation(fields: [id_program], references: [id_program])
   enrollments enrollment[]
+  type        String?      @db.VarChar
+  credits     Int?
   groups      group[]
 }
