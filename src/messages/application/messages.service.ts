@@ -1,9 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, BadRequestException } from '@nestjs/common';
 import { ChatSubject } from '../domain/observer/chat-subject';
 import { PrivateChatObserver } from '../infrastructure/observers/private-chat.observer';
 import { GroupChatObserver } from '../infrastructure/observers/group-chat.observer';
 import { MessageDto } from '../dto/message.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { IValidadorMensajeHandler } from '../domain/chain-of-responsibility/interfaces';
+
+export const VALIDACION_CHAIN_TOKEN = 'VALIDACION_CHAIN';
 
 /**
  * Main coordinator service for message processing.
@@ -18,6 +21,8 @@ export class MessagesService {
     private readonly privateChatObserver: PrivateChatObserver,
     private readonly groupChatObserver: GroupChatObserver,
     private readonly prisma: PrismaService,
+    @Inject(VALIDACION_CHAIN_TOKEN)
+    private readonly validacionChain: IValidadorMensajeHandler,
   ) {}
 
   /**
@@ -29,6 +34,13 @@ export class MessagesService {
   async sendMessage(messageDto: MessageDto): Promise<MessageDto> {
     try {
       this.logger.log(`Processing message: ${messageDto.text_content?.substring(0, 50)}...`);
+
+      // 0. Validate using Chain of Responsibility before any processing
+      const resultado = this.validacionChain.manejar(messageDto);
+      if (!resultado.valido) {
+        this.logger.warn(`Message rejected [${resultado.codigoError}]: ${resultado.mensaje}`);
+        throw new BadRequestException(resultado.mensaje ?? resultado.codigoError);
+      }
 
       // 1. Apply decorators (placeholder implementation)
       const decoratedMessage = this.applyDecorators(messageDto);
