@@ -4,7 +4,7 @@ import { PrivateChatObserver } from '../infrastructure/observers/private-chat.ob
 import { GroupChatObserver } from '../infrastructure/observers/group-chat.observer';
 import { MessageDto } from '../dto/message.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { IValidadorMensajeHandler } from '../domain/chain-of-responsibility/interfaces';
+import type { IValidadorMensajeHandler } from '../domain/chain-of-responsibility/interfaces';
 
 export const VALIDACION_CHAIN_TOKEN = 'VALIDACION_CHAIN';
 
