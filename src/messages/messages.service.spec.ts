@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { MessagesService } from './messages.service';
+import { MessagesService, VALIDACION_CHAIN_REST_TOKEN } from './messages.service';
 import { MessageRepository } from './message.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MESSAGE_EVENTS } from './events/message.events';
@@ -43,6 +43,13 @@ describe('MessagesService', () => {
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: VALIDACION_CHAIN_REST_TOKEN,
+          useValue: {
+            setSiguiente: jest.fn(),
+            manejar: jest.fn().mockReturnValue({ valido: true }),
+          },
         },
       ],
     }).compile();

@@ -2,14 +2,20 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MessageRepository } from './message.repository';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { MESSAGE_EVENTS, MessageSentPayload } from './events/message.events';
-import { ContentModeration } from './decorators/content-moderation.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import type { IValidadorMensajeHandler } from './domain/chain-of-responsibility/interfaces';
+import { MessageDto } from './dto/message.dto';
+import { FileAttachmentDto } from './dto/file-attachment.dto';
+
+export const VALIDACION_CHAIN_REST_TOKEN = 'VALIDACION_CHAIN_REST';
 
 /** Regex para capturar @nombre (letras, números, guiones, puntos) */
 const MENTION_REGEX = /@([\w.\-]+)/g;
@@ -20,15 +26,31 @@ export class MessagesService {
     private messageRepository: MessageRepository,
     private eventEmitter: EventEmitter2,
     private prisma: PrismaService,
+    @Inject(VALIDACION_CHAIN_REST_TOKEN)
+    private readonly validacionChain: IValidadorMensajeHandler,
   ) {}
 
-  /**
-   * Crear un nuevo mensaje y emitir evento.
-   * @ContentModeration intercepta el DTO antes del procesamiento para
-   * filtrar palabras prohibidas y validar longitud.
-   */
-  @ContentModeration({ filterProfanity: true, maxLength: 500, logActivity: true })
+  /** Crea un nuevo mensaje y emite evento; la cadena CoR valida antes de persistir. */
   async create(createMessageDto: CreateMessageDto) {
+    const dtoParaValidar: MessageDto = {
+      text_content: createMessageDto.text_content,
+      id_membership: createMessageDto.id_membership,
+      files: (createMessageDto.files ?? []).map(
+        (f) =>
+          ({
+            url: f.url,
+            name: f.file_name,
+            mimeType: f.mime_type,
+            size: f.size,
+          }) as FileAttachmentDto,
+      ),
+    };
+
+    const resultado = this.validacionChain.manejar(dtoParaValidar);
+    if (!resultado.valido) {
+      throw new BadRequestException(resultado.mensaje ?? resultado.codigoError);
+    }
+
     const message = await this.messageRepository.createWithFiles(
       createMessageDto,
       createMessageDto.files,

@@ -12,6 +12,8 @@ export interface ValidacionChainOptions {
   maxMenciones?: number;
   maxTamanoAdjuntoMb?: number;
   incluirValidacionAdjunto?: boolean;
+  /** Omitir ValidarPermisosHandler cuando auth se garantiza externamente (p.ej. guards REST) */
+  incluirValidacionPermisos?: boolean;
 }
 
 /**
@@ -26,18 +28,21 @@ export class ValidacionChainFactory {
       maxMenciones,
       maxTamanoAdjuntoMb,
       incluirValidacionAdjunto = true,
+      incluirValidacionPermisos = true,
     } = opciones;
 
     const validarTamano = new ValidarTamanoHandler(maxLongitud);
     const validarContenido = new ValidarContenidoHandler();
     const validarMenciones = new ValidarMencionesHandler(maxMenciones);
-    const validarPermisos = new ValidarPermisosHandler();
 
     // Orden explícito y configurable de la cadena
     let ultimo: IValidadorMensajeHandler = validarTamano
       .setSiguiente(validarContenido)
-      .setSiguiente(validarMenciones)
-      .setSiguiente(validarPermisos);
+      .setSiguiente(validarMenciones);
+
+    if (incluirValidacionPermisos) {
+      ultimo = ultimo.setSiguiente(new ValidarPermisosHandler());
+    }
 
     // ValidarAdjuntoHandler se agrega sin modificar los handlers anteriores
     if (incluirValidacionAdjunto) {

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MessagesService } from './messages.service';
 import { MessagesService as MessagesServiceUS02, VALIDACION_CHAIN_TOKEN } from './application/messages.service';
+import { VALIDACION_CHAIN_REST_TOKEN } from './messages.service';
 import { MessagesController } from './messages.controller';
 import { ChatGateway } from './infrastructure/gateways/chat.gateway';
 import { MessagesGateway } from './messages.gateway';
@@ -36,6 +37,11 @@ import { ValidacionChainFactory } from './domain/chain-of-responsibility/validac
     {
       provide: VALIDACION_CHAIN_TOKEN,
       useFactory: () => ValidacionChainFactory.crearCadena(),
+    },
+    {
+      provide: VALIDACION_CHAIN_REST_TOKEN,
+      useFactory: () =>
+        ValidacionChainFactory.crearCadena({ incluirValidacionPermisos: false }),
     },
   ],
   exports: [MessagesService, MessagesServiceUS02, ChatGateway, MessagesGateway, MessageRepository, ChatSessionManager],
