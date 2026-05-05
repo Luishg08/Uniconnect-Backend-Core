@@ -1,10 +1,125 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ExpoPushTokenDto } from './dto/expo-push-token.dto';
+import { INotificacionStrategy, NotificacionDTO, ResultadoEnvio } from './domain/strategy/interfaces';
+import { NOTIFICACION_STRATEGIES } from './notifications.tokens';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(NOTIFICACION_STRATEGIES)
+    private readonly estrategias: INotificacionStrategy[],
+  ) {}
+
+  // ─── Strategy Context ─────────────────────────────────────────────────────
+
+  /**
+   * Envía una notificación usando las estrategias activas para ese usuario y tipo de evento.
+   * El error de una estrategia queda aislado; las demás siguen ejecutándose.
+   */
+  async enviarNotificacion(notificacion: NotificacionDTO): Promise<ResultadoEnvio[]> {
+    const estrategiasActivas = await this.filtrarEstrategiasActivas(
+      notificacion.id_user,
+      notificacion.tipo_evento,
+    );
+
+    const resultados = await Promise.allSettled(
+      estrategiasActivas.map((e) => e.enviar(notificacion)),
+    );
+
+    return resultados.map((resultado, i) => {
+      if (resultado.status === 'fulfilled') {
+        return resultado.value;
+      }
+      const canal = estrategiasActivas[i].canal;
+      this.logger.error(
+        `Estrategia "${canal}" falló de forma inesperada: ${resultado.reason}`,
+      );
+      return {
+        canal,
+        exitoso: false,
+        error: String(resultado.reason),
+        timestamp: new Date(),
+      };
+    });
+  }
+
+  private async filtrarEstrategiasActivas(
+    userId: number,
+    tipoEvento: string,
+  ): Promise<INotificacionStrategy[]> {
+    await this.ensurePreferencesTable();
+
+    const preferencias = await this.prisma.$queryRaw<
+      Array<{ canal: string; activo: boolean }>
+    >`
+      SELECT canal, activo
+      FROM user_notification_preference
+      WHERE id_user = ${userId} AND tipo_evento = ${tipoEvento}
+    `;
+
+    // Sin preferencias configuradas → todas las estrategias activas por defecto
+    if (preferencias.length === 0) {
+      return this.estrategias;
+    }
+
+    const canalesActivos = new Set(
+      preferencias.filter((p) => p.activo).map((p) => p.canal),
+    );
+
+    return this.estrategias.filter((e) => canalesActivos.has(e.canal));
+  }
+
+  // ─── Preferencias de canal ────────────────────────────────────────────────
+
+  async obtenerPreferencias(userId: number) {
+    await this.ensurePreferencesTable();
+
+    return this.prisma.$queryRaw<
+      Array<{ tipo_evento: string; canal: string; activo: boolean }>
+    >`
+      SELECT tipo_evento, canal, activo
+      FROM user_notification_preference
+      WHERE id_user = ${userId}
+      ORDER BY tipo_evento, canal
+    `;
+  }
+
+  async actualizarPreferencia(
+    userId: number,
+    tipoEvento: string,
+    canal: string,
+    activo: boolean,
+  ) {
+    await this.ensurePreferencesTable();
+
+    await this.prisma.$executeRaw`
+      INSERT INTO user_notification_preference (id_user, tipo_evento, canal, activo)
+      VALUES (${userId}, ${tipoEvento}, ${canal}, ${activo})
+      ON CONFLICT (id_user, tipo_evento, canal)
+      DO UPDATE SET activo = EXCLUDED.activo
+    `;
+
+    return { success: true };
+  }
+
+  private async ensurePreferencesTable(): Promise<void> {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS user_notification_preference (
+        id          SERIAL PRIMARY KEY,
+        id_user     INTEGER NOT NULL REFERENCES "user"(id_user) ON DELETE CASCADE,
+        tipo_evento VARCHAR(100) NOT NULL,
+        canal       VARCHAR(100) NOT NULL,
+        activo      BOOLEAN NOT NULL DEFAULT TRUE,
+        UNIQUE (id_user, tipo_evento, canal)
+      )
+    `);
+  }
+
+  // ─── CRUD REST existente ──────────────────────────────────────────────────
 
   async findAllForUser(userId: number) {
     const notifications = await (this.prisma.notification as any).findMany({

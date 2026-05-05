@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetClaim } from 'src/auth/decorators/get-token-claim.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ExpoPushTokenDto } from './dto/expo-push-token.dto';
+import { PreferenciaCanalDto } from './dto/preferencia-canal.dto';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
@@ -59,5 +60,25 @@ export class NotificationsController {
     @Param('token') token: string,
   ) {
     return this.notificationsService.deleteExpoPushToken(userId, token);
+  }
+
+  // ─── Preferencias de canal ────────────────────────────────────────────────
+
+  @Get('preferencias')
+  async obtenerPreferencias(@GetClaim('sub') userId: number) {
+    return this.notificationsService.obtenerPreferencias(userId);
+  }
+
+  @Patch('preferencias')
+  async actualizarPreferencia(
+    @GetClaim('sub') userId: number,
+    @Body() dto: PreferenciaCanalDto,
+  ) {
+    return this.notificationsService.actualizarPreferencia(
+      userId,
+      dto.tipo_evento,
+      dto.canal,
+      dto.activo,
+    );
   }
 }
