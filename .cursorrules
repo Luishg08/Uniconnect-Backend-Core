@@ -1,0 +1,7 @@
+# Reglas de Proyecto: Backend NestJS
+- Arquitectura: Clean Architecture (Domain, Services, Controllers, Models).
+- DB: PostgreSQL con Prisma ORM. Siempre que cambies el schema, ejecuta `npx prisma generate`.
+- Reglas: 
+  1. Los nombres de archivos en kebab-case (ej. user-controller.ts).
+  2. Commits en ESPAÑOL, formato Conventional Commits (ej. feat(auth): crear login).
+  3. Antes de terminar, verificar errores de compilación con `npm run build`.

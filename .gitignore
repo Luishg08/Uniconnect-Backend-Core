@@ -13,6 +13,8 @@ yarn-error.log*
 lerna-debug.log*
 
 .claude
+CLAUDE.md
+/HUDocs
 
 # OS
 .DS_Store

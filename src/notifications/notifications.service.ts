@@ -16,10 +16,6 @@ export class NotificationsService {
 
   // ─── Strategy Context ─────────────────────────────────────────────────────
 
-  /**
-   * Envía una notificación usando las estrategias activas para ese usuario y tipo de evento.
-   * El error de una estrategia queda aislado; las demás siguen ejecutándose.
-   */
   async enviarNotificacion(notificacion: NotificacionDTO): Promise<ResultadoEnvio[]> {
     const estrategiasActivas = await this.filtrarEstrategiasActivas(
       notificacion.id_user,
@@ -51,17 +47,11 @@ export class NotificationsService {
     userId: number,
     tipoEvento: string,
   ): Promise<INotificacionStrategy[]> {
-    await this.ensurePreferencesTable();
+    const preferencias = await this.prisma.user_notification_preference.findMany({
+      where: { id_user: userId, tipo_evento: tipoEvento },
+      select: { canal: true, activo: true },
+    });
 
-    const preferencias = await this.prisma.$queryRaw<
-      Array<{ canal: string; activo: boolean }>
-    >`
-      SELECT canal, activo
-      FROM user_notification_preference
-      WHERE id_user = ${userId} AND tipo_evento = ${tipoEvento}
-    `;
-
-    // Sin preferencias configuradas → todas las estrategias activas por defecto
     if (preferencias.length === 0) {
       return this.estrategias;
     }
@@ -76,16 +66,11 @@ export class NotificationsService {
   // ─── Preferencias de canal ────────────────────────────────────────────────
 
   async obtenerPreferencias(userId: number) {
-    await this.ensurePreferencesTable();
-
-    return this.prisma.$queryRaw<
-      Array<{ tipo_evento: string; canal: string; activo: boolean }>
-    >`
-      SELECT tipo_evento, canal, activo
-      FROM user_notification_preference
-      WHERE id_user = ${userId}
-      ORDER BY tipo_evento, canal
-    `;
+    return this.prisma.user_notification_preference.findMany({
+      where: { id_user: userId },
+      select: { tipo_evento: true, canal: true, activo: true },
+      orderBy: [{ tipo_evento: 'asc' }, { canal: 'asc' }],
+    });
   }
 
   async actualizarPreferencia(
@@ -94,29 +79,15 @@ export class NotificationsService {
     canal: string,
     activo: boolean,
   ) {
-    await this.ensurePreferencesTable();
-
-    await this.prisma.$executeRaw`
-      INSERT INTO user_notification_preference (id_user, tipo_evento, canal, activo)
-      VALUES (${userId}, ${tipoEvento}, ${canal}, ${activo})
-      ON CONFLICT (id_user, tipo_evento, canal)
-      DO UPDATE SET activo = EXCLUDED.activo
-    `;
+    await this.prisma.user_notification_preference.upsert({
+      where: {
+        id_user_tipo_evento_canal: { id_user: userId, tipo_evento: tipoEvento, canal },
+      },
+      update: { activo },
+      create: { id_user: userId, tipo_evento: tipoEvento, canal, activo },
+    });
 
     return { success: true };
-  }
-
-  private async ensurePreferencesTable(): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS user_notification_preference (
-        id          SERIAL PRIMARY KEY,
-        id_user     INTEGER NOT NULL REFERENCES "user"(id_user) ON DELETE CASCADE,
-        tipo_evento VARCHAR(100) NOT NULL,
-        canal       VARCHAR(100) NOT NULL,
-        activo      BOOLEAN NOT NULL DEFAULT TRUE,
-        UNIQUE (id_user, tipo_evento, canal)
-      )
-    `);
   }
 
   // ─── CRUD REST existente ──────────────────────────────────────────────────
@@ -187,14 +158,11 @@ export class NotificationsService {
   }
 
   async saveExpoPushToken(userId: number, dto: ExpoPushTokenDto) {
-    await this.ensurePushTokenTable();
-
-    await this.prisma.$executeRaw`
-      INSERT INTO user_push_token (id_user, token, platform)
-      VALUES (${userId}, ${dto.token}, ${dto.platform ?? null})
-      ON CONFLICT (id_user, token)
-      DO UPDATE SET platform = EXCLUDED.platform, updated_at = NOW()
-    `;
+    await this.prisma.user_push_token.upsert({
+      where: { id_user_token: { id_user: userId, token: dto.token } },
+      update: { platform: dto.platform ?? null, updated_at: new Date() },
+      create: { id_user: userId, token: dto.token, platform: dto.platform ?? null },
+    });
 
     return {
       success: true,
@@ -203,32 +171,13 @@ export class NotificationsService {
   }
 
   async deleteExpoPushToken(userId: number, token: string) {
-    await this.ensurePushTokenTable();
-
-    const deleted = await this.prisma.$executeRaw`
-      DELETE FROM user_push_token
-      WHERE id_user = ${userId} AND token = ${token}
-    `;
+    const result = await this.prisma.user_push_token.deleteMany({
+      where: { id_user: userId, token },
+    });
 
     return {
       success: true,
-      deleted,
+      deleted: result.count,
     };
-  }
-
-  private async ensurePushTokenTable() {
-    const query = `
-      CREATE TABLE IF NOT EXISTS user_push_token (
-        id_push_token SERIAL PRIMARY KEY,
-        id_user INTEGER NOT NULL REFERENCES "user"(id_user) ON DELETE CASCADE,
-        token VARCHAR(255) NOT NULL,
-        platform VARCHAR(50),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (id_user, token)
-      )
-    `;
-
-    await this.prisma.$executeRawUnsafe(query);
   }
 }

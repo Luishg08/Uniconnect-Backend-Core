@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { INotificacionStrategy, NotificacionDTO, ResultadoEnvio } from './interfaces';
 
 /**
@@ -11,12 +12,20 @@ export class ResumenDiarioStrategy implements INotificacionStrategy {
   readonly canal = 'resumen_diario';
   private readonly logger = new Logger(ResumenDiarioStrategy.name);
 
+  constructor(private readonly prisma: PrismaService) {}
+
   async enviar(notificacion: NotificacionDTO): Promise<ResultadoEnvio> {
     try {
+      await this.prisma.daily_digest_queue.create({
+        data: {
+          id_user: notificacion.id_user,
+          mensaje: notificacion.mensaje,
+          tipo_evento: notificacion.tipo_evento ?? null,
+        },
+      });
       this.logger.log(
-        `ResumenDiario: encolando para usuario ${notificacion.id_user} — tipo="${notificacion.tipo_evento}"`,
+        `ResumenDiario: encolado para usuario ${notificacion.id_user} — tipo="${notificacion.tipo_evento}"`,
       );
-      // Encolar en sistema de batch (SQS, BullMQ, etc.) para envío posterior
       return { canal: this.canal, exitoso: true, timestamp: new Date() };
     } catch (error) {
       const mensaje = error instanceof Error ? error.message : String(error);

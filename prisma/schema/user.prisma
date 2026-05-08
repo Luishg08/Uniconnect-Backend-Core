@@ -19,8 +19,11 @@ model user {
   group_join_requests   group_join_request[]
   memberships           membership[]
   notifications         notification[]
-  push_token            push_token[]
-  token_blacklist       token_blacklist[]
+  push_token                    push_token[]
+  user_push_token               user_push_token[]
+  user_notification_preferences user_notification_preference[]
+  daily_digest_queue            daily_digest_queue[]
+  token_blacklist               token_blacklist[]
   program               program?             @relation(fields: [id_program], references: [id_program])
   role                  role                 @relation(fields: [id_role], references: [id_role])
 }

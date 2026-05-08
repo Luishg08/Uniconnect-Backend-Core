@@ -9,6 +9,9 @@ import type {
   GroupInvitationAcceptedPayload,
   UserJoinedGroupPayload,
   ConnectionRequestSentPayload,
+  GroupJoinRequestSentPayload,
+  GroupJoinRequestAcceptedPayload,
+  GroupJoinRequestRejectedPayload,
 } from '../../messages/events/message.events';
 
 /**
@@ -131,6 +134,48 @@ export class NotificationEventListener {
     } catch (error) {
       this.logger.error('Error handling CONNECTION_REQUEST_SENT event:', error);
       throw error;
+    }
+  }
+
+  @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT)
+  async handleGroupJoinRequestSent(payload: GroupJoinRequestSentPayload) {
+    try {
+      await this.notificationsService.enviarNotificacion({
+        id_user: payload.owner_id,
+        mensaje: `${payload.requester_name} solicitó unirse al grupo "${payload.group_name}"`,
+        tipo_evento: 'group_join_request',
+        entidad_relacionada_id: payload.id_request,
+      });
+    } catch (error) {
+      this.logger.error('Error handling GROUP_JOIN_REQUEST_SENT event:', error);
+    }
+  }
+
+  @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_ACCEPTED)
+  async handleGroupJoinRequestAccepted(payload: GroupJoinRequestAcceptedPayload) {
+    try {
+      await this.notificationsService.enviarNotificacion({
+        id_user: payload.requester_id,
+        mensaje: `Tu solicitud para unirte al grupo "${payload.group_name}" fue aceptada`,
+        tipo_evento: 'group_join_request_accepted',
+        entidad_relacionada_id: payload.id_request,
+      });
+    } catch (error) {
+      this.logger.error('Error handling GROUP_JOIN_REQUEST_ACCEPTED event:', error);
+    }
+  }
+
+  @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_REJECTED)
+  async handleGroupJoinRequestRejected(payload: GroupJoinRequestRejectedPayload) {
+    try {
+      await this.notificationsService.enviarNotificacion({
+        id_user: payload.requester_id,
+        mensaje: `Tu solicitud para unirte al grupo "${payload.group_name}" fue rechazada`,
+        tipo_evento: 'group_join_request_rejected',
+        entidad_relacionada_id: payload.id_request,
+      });
+    } catch (error) {
+      this.logger.error('Error handling GROUP_JOIN_REQUEST_REJECTED event:', error);
     }
   }
 }

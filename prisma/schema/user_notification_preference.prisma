@@ -1,0 +1,10 @@
+model user_notification_preference {
+  id          Int     @id @default(autoincrement())
+  id_user     Int
+  tipo_evento String  @db.VarChar(100)
+  canal       String  @db.VarChar(100)
+  activo      Boolean @default(true)
+  user        user    @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+
+  @@unique([id_user, tipo_evento, canal])
+}

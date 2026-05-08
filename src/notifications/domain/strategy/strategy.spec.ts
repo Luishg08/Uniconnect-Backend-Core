@@ -83,21 +83,38 @@ describe('InAppWebSocketStrategy', () => {
 
 // ─── EmailInstitucionalStrategy ───────────────────────────────────────────────
 
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn().mockReturnValue({
+    sendMail: jest.fn().mockResolvedValue({ messageId: 'test-id' }),
+  }),
+}));
+
 describe('EmailInstitucionalStrategy', () => {
   let strategy: EmailInstitucionalStrategy;
+  let prismaMock: any;
 
   beforeEach(() => {
-    strategy = new EmailInstitucionalStrategy();
+    prismaMock = {
+      $queryRaw: jest.fn().mockResolvedValue([{ email: 'test@example.com' }]),
+    };
+    strategy = new EmailInstitucionalStrategy(prismaMock);
   });
 
   it('debe tener canal "email_institucional"', () => {
     expect(strategy.canal).toBe('email_institucional');
   });
 
-  it('retorna exitoso=true', async () => {
+  it('retorna exitoso=true cuando encuentra email del usuario', async () => {
     const resultado = await strategy.enviar(notificacion);
     expect(resultado.exitoso).toBe(true);
     expect(resultado.canal).toBe('email_institucional');
+  });
+
+  it('retorna exitoso=false si el usuario no tiene email', async () => {
+    prismaMock.$queryRaw.mockResolvedValueOnce([]);
+    const resultado = await strategy.enviar(notificacion);
+    expect(resultado.exitoso).toBe(false);
+    expect(resultado.error).toBe('Email no encontrado');
   });
 });
 
@@ -109,7 +126,7 @@ describe('PushMovilStrategy', () => {
 
   beforeEach(() => {
     prismaMock = {
-      push_token: { findMany: jest.fn() },
+      $queryRaw: jest.fn(),
     };
     strategy = new PushMovilStrategy(prismaMock);
   });
@@ -118,16 +135,16 @@ describe('PushMovilStrategy', () => {
     expect(strategy.canal).toBe('push_movil');
   });
 
-  it('retorna exitoso=true si el usuario no tiene tokens activos', async () => {
-    prismaMock.push_token.findMany.mockResolvedValue([]);
+  it('retorna exitoso=true si el usuario no tiene tokens registrados', async () => {
+    prismaMock.$queryRaw.mockResolvedValue([]);
 
     const resultado = await strategy.enviar(notificacion);
 
     expect(resultado.exitoso).toBe(true);
   });
 
-  it('llama a Expo API cuando hay tokens activos', async () => {
-    prismaMock.push_token.findMany.mockResolvedValue([{ token: 'ExpoToken[abc]' }]);
+  it('llama a Expo API cuando hay tokens registrados', async () => {
+    prismaMock.$queryRaw.mockResolvedValue([{ token: 'ExpoToken[abc]' }]);
     global.fetch = jest.fn().mockResolvedValue({ ok: true });
 
     const resultado = await strategy.enviar(notificacion);
@@ -140,7 +157,7 @@ describe('PushMovilStrategy', () => {
   });
 
   it('devuelve exitoso=false cuando Expo API falla', async () => {
-    prismaMock.push_token.findMany.mockResolvedValue([{ token: 'ExpoToken[abc]' }]);
+    prismaMock.$queryRaw.mockResolvedValue([{ token: 'ExpoToken[abc]' }]);
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
 
     const resultado = await strategy.enviar(notificacion);
@@ -154,19 +171,25 @@ describe('PushMovilStrategy', () => {
 
 describe('ResumenDiarioStrategy', () => {
   let strategy: ResumenDiarioStrategy;
+  let prismaMock: any;
 
   beforeEach(() => {
-    strategy = new ResumenDiarioStrategy();
+    prismaMock = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(undefined),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    strategy = new ResumenDiarioStrategy(prismaMock);
   });
 
   it('debe tener canal "resumen_diario"', () => {
     expect(strategy.canal).toBe('resumen_diario');
   });
 
-  it('retorna exitoso=true sin modificar estrategias existentes (OCP)', async () => {
+  it('encola la notificación y retorna exitoso=true (OCP)', async () => {
     const resultado = await strategy.enviar(notificacion);
     expect(resultado.exitoso).toBe(true);
     expect(resultado.canal).toBe('resumen_diario');
+    expect(prismaMock.$executeRaw).toHaveBeenCalled();
   });
 });
 
