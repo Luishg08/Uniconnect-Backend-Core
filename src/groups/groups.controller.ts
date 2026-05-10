@@ -424,7 +424,8 @@ export class GroupsController {
     @Param('id', ParseIntPipe) groupId: number,
     @GetClaim('sub') userId: number,
   ) {
-    return this.groupsService.getGroupInfo(groupId, userId);
+    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    return this.groupsService.getGroupInfo(groupId, numericUserId);
   }
   @UseGuards(JwtAuthGuard)
   @Patch(':id/invitations/:invitationId/accept')

@@ -11,12 +11,10 @@ model user {
   connections_adressee  connection[]         @relation("ConnectionAdressee")
   connections_requester connection[]         @relation("ConnectionRequester")
   enrollments           enrollment[]
-  events_created        event[]
   groups_owned          group[]              @relation("GroupOwner")
   groups_pending_owner  group[]              @relation("GroupPendingOwner")
   invitations_received  group_invitation[]   @relation("GroupInvitee")
   invitations_sent      group_invitation[]   @relation("GroupInviter")
-  group_join_requests   group_join_request[]
   memberships           membership[]
   notifications         notification[]
   push_token                    push_token[]

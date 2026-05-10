@@ -1,3 +1,12 @@
+enum EventType {
+  CONFERENCIA
+  TALLER
+  SEMINARIO
+  COMPETENCIA
+  CULTURAL
+  DEPORTIVO
+}
+
 model event {
   id_event    Int       @id @default(autoincrement())
   title       String
@@ -6,12 +15,13 @@ model event {
   time        String
   location    String
   type        EventType
-  created_by  Int
-  id_program  Int?
+  created_by  Int // ID del usuario que creó el evento
+  id_program  Int? // ID de la carrera/programa (opcional para eventos globales de superadmin)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  creator     user      @relation(fields: [created_by], references: [id_user], onDelete: Cascade)
-  program     program?  @relation(fields: [id_program], references: [id_program])
+
+  creator user     @relation(fields: [created_by], references: [id_user], onDelete: Cascade)
+  program program? @relation(fields: [id_program], references: [id_program], onDelete: SetNull)
 
   @@index([date])
   @@index([type])
@@ -19,13 +29,4 @@ model event {
   @@index([date, type])
   @@index([created_by])
   @@map("events")
-}
-
-enum EventType {
-  CONFERENCIA
-  TALLER
-  SEMINARIO
-  COMPETENCIA
-  CULTURAL
-  DEPORTIVO
 }

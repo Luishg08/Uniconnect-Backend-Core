@@ -158,6 +158,12 @@ export class AuthService {
             const expiresAt = new Date(decoded.exp * 1000); // exp está en segundos
             await this.usersService.addTokenToBlacklist(accessToken, userId, expiresAt);
 
+            console.log('✅ [AuthService.logout] Token invalidated:', {
+                userId,
+                expiresAt,
+                timestamp: new Date().toISOString(),
+            });
+
             return {
                 success: true,
                 data: {
@@ -290,7 +296,7 @@ export class AuthService {
         }
 
         const tokenUrl = `https://${auth0Domain}/oauth/token`;
-        
+        console.log(`Exchanging Auth0 code at: ${tokenUrl}`);
         
         const requestBody = {
             grant_type: 'authorization_code',
@@ -302,7 +308,7 @@ export class AuthService {
         };
 
         try {
-            
+            console.log('Sending request to Auth0...');
             const response = await firstValueFrom(
                 this.httpService.post(tokenUrl, requestBody, {
                     headers: {
@@ -312,7 +318,7 @@ export class AuthService {
                 })
             );
 
-            
+            console.log('Auth0 token exchange successful');
             return response.data;
         } catch (error: any) {
             console.error('Auth0 token exchange error:', {
