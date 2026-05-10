@@ -23,11 +23,17 @@ describe('MessagesService (US-O02)', () => {
     privateChatObserver = { update: jest.fn() } as any;
     groupChatObserver = { update: jest.fn() } as any;
 
+    const validacionChainMock = {
+      setSiguiente: jest.fn(),
+      manejar: jest.fn().mockReturnValue({ valido: true }),
+    };
+
     service = new MessagesService(
       chatSubject,
       privateChatObserver,
       groupChatObserver,
       prismaService,
+      validacionChainMock,
     );
   });
 

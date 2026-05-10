@@ -131,89 +131,49 @@ export class NotificationEventListener {
         tipo_evento: 'connection_request',
         entidad_relacionada_id: payload.id_connection,
       });
-
-      this.logger.log(
-        `Created notification for connection request ${payload.id_connection}`,
-      );
     } catch (error) {
       this.logger.error('Error handling CONNECTION_REQUEST_SENT event:', error);
       throw error;
     }
   }
 
-  /**
-   * Escuchar evento de solicitud de unión a grupo enviada
-   * Notifica al OWNER del grupo que alguien quiere unirse
-   */
   @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT)
   async handleGroupJoinRequestSent(payload: GroupJoinRequestSentPayload) {
     try {
-      this.logger.log(
-        `Handling GROUP_JOIN_REQUEST_SENT event: user ${payload.requester_id} → group ${payload.id_group}`,
-      );
-
       await this.notificationsService.enviarNotificacion({
         id_user: payload.owner_id,
-        mensaje: `${payload.requester_name} quiere unirse a tu grupo "${payload.group_name}"`,
+        mensaje: `${payload.requester_name} solicitó unirse al grupo "${payload.group_name}"`,
         tipo_evento: 'group_join_request',
         entidad_relacionada_id: payload.id_request,
       });
-
-      this.logger.log(
-        `Created join-request notification for owner ${payload.owner_id}`,
-      );
     } catch (error) {
       this.logger.error('Error handling GROUP_JOIN_REQUEST_SENT event:', error);
     }
   }
 
-  /**
-   * Escuchar evento de solicitud de unión aceptada
-   * Notifica al REQUESTER que fue aceptado en el grupo
-   */
   @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_ACCEPTED)
   async handleGroupJoinRequestAccepted(payload: GroupJoinRequestAcceptedPayload) {
     try {
-      this.logger.log(
-        `Handling GROUP_JOIN_REQUEST_ACCEPTED event for request ${payload.id_request}`,
-      );
-
       await this.notificationsService.enviarNotificacion({
         id_user: payload.requester_id,
         mensaje: `Tu solicitud para unirte al grupo "${payload.group_name}" fue aceptada`,
         tipo_evento: 'group_join_request_accepted',
         entidad_relacionada_id: payload.id_request,
       });
-
-      this.logger.log(
-        `Created accepted notification for requester ${payload.requester_id}`,
-      );
     } catch (error) {
       this.logger.error('Error handling GROUP_JOIN_REQUEST_ACCEPTED event:', error);
     }
   }
 
-  /**
-   * Escuchar evento de solicitud de unión rechazada
-   * Notifica al REQUESTER que fue rechazado
-   */
   @OnEvent(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_REJECTED)
   async handleGroupJoinRequestRejected(payload: GroupJoinRequestRejectedPayload) {
     try {
-      this.logger.log(
-        `Handling GROUP_JOIN_REQUEST_REJECTED event for request ${payload.id_request}`,
-      );
-
       await this.notificationsService.enviarNotificacion({
         id_user: payload.requester_id,
         mensaje: `Tu solicitud para unirte al grupo "${payload.group_name}" fue rechazada`,
         tipo_evento: 'group_join_request_rejected',
         entidad_relacionada_id: payload.id_request,
       });
-
-      this.logger.log(
-        `Created rejected notification for requester ${payload.requester_id}`,
-      );
     } catch (error) {
       this.logger.error('Error handling GROUP_JOIN_REQUEST_REJECTED event:', error);
     }

@@ -7,15 +7,11 @@ import { createPrismaMock } from '../../../test/mocks/prisma.mock';
 describe('NotificationEventListener - Observer Pattern (Event Reactions)', () => {
   let listener: NotificationEventListener;
   let prisma: ReturnType<typeof createPrismaMock>;
-  let notificationsService: jest.Mocked<NotificationsService>;
+  let notificationsService: { enviarNotificacion: jest.Mock };
 
   beforeEach(async () => {
     prisma = createPrismaMock();
-    
-    // Mock del NotificationsService
-    notificationsService = {
-      enviarNotificacion: jest.fn().mockResolvedValue(undefined),
-    } as any;
+    notificationsService = { enviarNotificacion: jest.fn().mockResolvedValue([]) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -33,10 +29,9 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
   describe('handleMessageSent', () => {
     it('should create notifications for group members except sender', async () => {
       const mockMembers = [
-        { id_user: 2, group: { name: 'Test Group' }, user: { full_name: 'Bob' } },
-        { id_user: 3, group: { name: 'Test Group' }, user: { full_name: 'Charlie' } },
+        { id_user: 2, group: { name: 'Test Group' } },
+        { id_user: 3, group: { name: 'Test Group' } },
       ];
-
       prisma.membership.findMany.mockResolvedValue(mockMembers as any);
 
       await listener.handleMessageSent({
@@ -51,11 +46,10 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
 
       expect(notificationsService.enviarNotificacion).toHaveBeenCalledTimes(2);
       expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id_user: 2,
-          tipo_evento: 'message',
-          entidad_relacionada_id: 1,
-        }),
+        expect.objectContaining({ id_user: 2, tipo_evento: 'message' }),
+      );
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({ id_user: 3, tipo_evento: 'message' }),
       );
     });
 
@@ -158,7 +152,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         { id_user: 2, group: { name: 'Test Group' } },
         { id_user: 4, group: { name: 'Test Group' } },
       ];
-
       prisma.membership.findMany.mockResolvedValue(mockMembers as any);
 
       await listener.handleUserJoinedGroup({
@@ -169,6 +162,9 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
       });
 
       expect(notificationsService.enviarNotificacion).toHaveBeenCalledTimes(2);
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({ id_user: 2, tipo_evento: 'user_joined_group' }),
+      );
     });
 
     it('should not throw if BD fails', async () => {

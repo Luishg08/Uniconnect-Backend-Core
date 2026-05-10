@@ -32,6 +32,7 @@ COPY --from=builder /usr/src/app/dist ./dist
 
 # Copiar el schema de Prisma para que esté disponible en tiempo de ejecución
 COPY --from=builder /usr/src/app/prisma ./prisma
+COPY --from=builder /usr/src/app/prisma.config.ts ./
 
 COPY package.json ./
 

@@ -11,8 +11,8 @@ export class PushMovilStrategy implements INotificacionStrategy {
 
   async enviar(notificacion: NotificacionDTO): Promise<ResultadoEnvio> {
     try {
-      const tokens = await this.prisma.push_token.findMany({
-        where: { id_user: notificacion.id_user, is_active: true },
+      const tokens = await this.prisma.user_push_token.findMany({
+        where: { id_user: notificacion.id_user },
         select: { token: true },
       });
 
