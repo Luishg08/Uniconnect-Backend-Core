@@ -91,6 +91,11 @@ export class ConnectionsService {
       addressee_id: adresseeId,
       sent_at: new Date(),
     };
+    console.log('🔔 [ConnectionsService] EMITTING CONNECTION_REQUEST_SENT (NEW):', {
+      event: MESSAGE_EVENTS.CONNECTION_REQUEST_SENT,
+      payload,
+      timestamp: new Date().toISOString(),
+    });
     this.eventEmitter.emit(MESSAGE_EVENTS.CONNECTION_REQUEST_SENT, payload);
 
     return {
@@ -123,13 +128,13 @@ export class ConnectionsService {
 
   async acceptConnectionRequest(connectionId: number, userId: number) {
     try {
-      
+      console.log('🔍 [acceptConnectionRequest] Starting:', { connectionId, userId });
 
       const connection = await this.prisma.connection.findUnique({
         where: { id_connection: connectionId },
       });
 
-      
+      console.log('🔍 [acceptConnectionRequest] Connection found:', connection);
 
       if (!connection) {
         throw new NotFoundException('Solicitud no encontrada');
@@ -143,7 +148,7 @@ export class ConnectionsService {
         throw new BadRequestException('Esta solicitud ya fue respondida');
       }
 
-      
+      console.log('🔍 [acceptConnectionRequest] Updating connection...');
 
       const updatedConnection = await this.prisma.connection.update({
         where: { id_connection: connectionId },
@@ -153,7 +158,7 @@ export class ConnectionsService {
         },
       });
 
-      
+      console.log('✅ [acceptConnectionRequest] Connection updated:', updatedConnection);
 
       return {
         message: 'Solicitud aceptada',
@@ -172,13 +177,13 @@ export class ConnectionsService {
 
   async rejectConnectionRequest(connectionId: number, userId: number) {
     try {
-      
+      console.log('🔍 [rejectConnectionRequest] Starting:', { connectionId, userId });
 
       const connection = await this.prisma.connection.findUnique({
         where: { id_connection: connectionId },
       });
 
-      
+      console.log('🔍 [rejectConnectionRequest] Connection found:', connection);
 
       if (!connection) {
         throw new NotFoundException('Solicitud no encontrada');
@@ -192,7 +197,7 @@ export class ConnectionsService {
         throw new BadRequestException('Esta solicitud ya fue respondida');
       }
 
-      
+      console.log('🔍 [rejectConnectionRequest] Updating connection...');
 
       const updatedConnection = await this.prisma.connection.update({
         where: { id_connection: connectionId },
@@ -202,7 +207,7 @@ export class ConnectionsService {
         },
       });
 
-      
+      console.log('✅ [rejectConnectionRequest] Connection updated:', updatedConnection);
 
       return {
         message: 'Solicitud rechazada',

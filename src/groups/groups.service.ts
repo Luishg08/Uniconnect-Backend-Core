@@ -323,33 +323,7 @@ export class GroupsService {
       },
     });
 
-    if (groups.length === 0) return groups;
-
-    const groupIds = groups.map((g) => g.id_group);
-
-    // Obtener solicitudes de unión pendientes del usuario para estos grupos
-    const pendingJoinRequests = await this.prisma.group_join_request.findMany({
-      where: { id_group: { in: groupIds }, requester_id: userId, status: 'pending' },
-      select: { id_group: true },
-    });
-
-    // Obtener invitaciones pendientes del usuario para estos grupos
-    const pendingInvitations = await this.prisma.group_invitation.findMany({
-      where: { id_group: { in: groupIds }, invitee_id: userId, status: 'pending' },
-      select: { id_group: true },
-    });
-
-    const joinRequestedGroupIds = new Set(pendingJoinRequests.map((r) => r.id_group));
-    const invitedGroupIds = new Set(pendingInvitations.map((i) => i.id_group));
-
-    return groups.map((g) => ({
-      ...g,
-      user_request_status: joinRequestedGroupIds.has(g.id_group)
-        ? 'join_requested'
-        : invitedGroupIds.has(g.id_group)
-        ? 'invited'
-        : 'none',
-    }));
+    return groups;
   }
 
   /**
@@ -458,6 +432,11 @@ export class GroupsService {
           select: { id_group: true },
         });
 
+        console.log('[DM] Shared group check:', {
+          userId1,
+          userId2,
+          sharedGroupFound: sharedGroup,
+        });
 
         if (!sharedGroup) {
           console.warn('[DM] 403 — no connection and no shared group between users', {
@@ -680,6 +659,18 @@ export class GroupsService {
                   select: { id_user: true, full_name: true, picture: true, email: true },
                 },
               },
+            });
+
+            // Emitir evento
+            this.eventEmitter.emit(MESSAGE_EVENTS.GROUP_JOIN_REQUEST_SENT, {
+              id_request: updated.id_request,
+              id_group: groupId,
+              group_name: group.name ?? 'Grupo',
+              owner_id: group.owner_id!,
+              requester_id: userId,
+              requester_name: updated.requester?.full_name ?? 'Usuario',
+              requester_picture: updated.requester?.picture ?? null,
+              requested_at: updated.requested_at,
             });
 
             return updated;
@@ -1018,24 +1009,13 @@ export class GroupsService {
       group_name: membership.group?.name || 'Grupo',
       left_at: new Date(),
     });
-
-    // Notificar al miembro que se fue para que actualice su lista de grupos
-    this.studyGroupSubject.notify({
-      type: 'MEMBER_REMOVED',
-      payload: {
-        id_group: groupId,
-        group_name: membership.group?.name || 'Grupo',
-      },
-      targetUserId: userId,
-      timestamp: new Date(),
-    });
   }
 
   async removeMember(groupId: number, memberId: number, userId: number) {
     // Verificar que quien ejecuta es el owner o un admin
     const group = await this.prisma.group.findUnique({
       where: { id_group: groupId },
-      select: { owner_id: true, name: true },
+      select: { owner_id: true },
     });
 
     if (!group || group.owner_id !== userId) {
@@ -1050,22 +1030,9 @@ export class GroupsService {
       throw new NotFoundException('El usuario no es miembro de este grupo');
     }
 
-    const deleted = await this.prisma.membership.delete({
+    return await this.prisma.membership.delete({
       where: { id_user_id_group: { id_user: memberId, id_group: groupId } },
     });
-
-    // Notificar al miembro removido para que actualice su estado de grupos
-    this.studyGroupSubject.notify({
-      type: 'MEMBER_REMOVED',
-      payload: {
-        id_group: groupId,
-        group_name: group.name || 'Grupo',
-      },
-      targetUserId: memberId,
-      timestamp: new Date(),
-    });
-
-    return deleted;
   }
 
   async makeAdmin(groupId: number, memberId: number, userId: number) {
