@@ -192,7 +192,7 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         requester_id: 2,
         requester_name: 'Alice',
         addressee_id: 3,
-        request_at: new Date(),
+        sent_at: new Date(),
       });
 
       expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
@@ -213,7 +213,7 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
           requester_id: 2,
           requester_name: 'Alice',
           addressee_id: 3,
-          request_at: new Date(),
+          sent_at: new Date(),
         }),
       ).rejects.toThrow('DB Error');
     });
@@ -262,9 +262,10 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
       await listener.handleGroupJoinRequestAccepted({
         id_request: 1,
         requester_id: 3,
+        requester_name: 'Bob',
         id_group: 10,
         group_name: 'Test Group',
-        accepted_at: new Date(),
+        responded_at: new Date(),
       });
 
       expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
@@ -283,9 +284,10 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         listener.handleGroupJoinRequestAccepted({
           id_request: 1,
           requester_id: 3,
+          requester_name: 'Bob',
           id_group: 10,
           group_name: 'Test Group',
-          accepted_at: new Date(),
+          responded_at: new Date(),
         }),
       ).resolves.not.toThrow();
     });
@@ -298,7 +300,7 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         requester_id: 3,
         id_group: 10,
         group_name: 'Test Group',
-        rejected_at: new Date(),
+        responded_at: new Date(),
       });
 
       expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
@@ -319,7 +321,7 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
           requester_id: 3,
           id_group: 10,
           group_name: 'Test Group',
-          rejected_at: new Date(),
+          responded_at: new Date(),
         }),
       ).resolves.not.toThrow();
     });
