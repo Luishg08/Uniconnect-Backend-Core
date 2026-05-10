@@ -4,7 +4,7 @@ model user_notification_preference {
   tipo_evento String  @db.VarChar(100)
   canal       String  @db.VarChar(100)
   activo      Boolean @default(true)
-  user        user    @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+  user        user    @relation(fields: [id_user], references: [id_user], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([id_user, tipo_evento, canal])
 }
