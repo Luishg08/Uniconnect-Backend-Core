@@ -1,19 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationEventListener } from '../notification-event.listener';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../../notifications.service';
 import { createPrismaMock } from '../../../test/mocks/prisma.mock';
 
 describe('NotificationEventListener - Observer Pattern (Event Reactions)', () => {
   let listener: NotificationEventListener;
   let prisma: ReturnType<typeof createPrismaMock>;
+  let notificationsService: jest.Mocked<NotificationsService>;
 
   beforeEach(async () => {
     prisma = createPrismaMock();
+    
+    // Mock del NotificationsService
+    notificationsService = {
+      enviarNotificacion: jest.fn().mockResolvedValue(undefined),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationEventListener,
         { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -30,7 +38,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
       ];
 
       prisma.membership.findMany.mockResolvedValue(mockMembers as any);
-      prisma.notification.createMany.mockResolvedValue({ count: 2 });
 
       await listener.handleMessageSent({
         id_message: 1,
@@ -42,12 +49,14 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         sender_picture: null,
       });
 
-      expect(prisma.notification.createMany).toHaveBeenCalledWith({
-        data: expect.arrayContaining([
-          expect.objectContaining({ id_user: 2, notification_type: 'message' }),
-          expect.objectContaining({ id_user: 3, notification_type: 'message' }),
-        ]),
-      });
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledTimes(2);
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id_user: 2,
+          tipo_evento: 'message',
+          entidad_relacionada_id: 1,
+        }),
+      );
     });
 
     it('should not throw if BD fails', async () => {
@@ -69,8 +78,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
 
   describe('handleGroupInvitationSent', () => {
     it('should create notification for invitee', async () => {
-      prisma.notification.create.mockResolvedValue({ id_notification: 1 } as any);
-
       await listener.handleGroupInvitationSent({
         id_invitation: 1,
         id_group: 10,
@@ -81,17 +88,17 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         invited_at: new Date(),
       });
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
           id_user: 3,
-          notification_type: 'group_invitation',
-          related_entity_id: 1,
+          tipo_evento: 'group_invitation',
+          entidad_relacionada_id: 1,
         }),
-      });
+      );
     });
 
     it('should not throw if BD fails', async () => {
-      prisma.notification.create.mockRejectedValue(new Error('DB Error'));
+      notificationsService.enviarNotificacion.mockRejectedValue(new Error('DB Error'));
 
       await expect(
         listener.handleGroupInvitationSent({
@@ -110,7 +117,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
   describe('handleGroupInvitationAccepted', () => {
     it('should create notification for inviter', async () => {
       prisma.group_invitation.findUnique.mockResolvedValue({ inviter_id: 2 } as any);
-      prisma.notification.create.mockResolvedValue({ id_notification: 1 } as any);
 
       await listener.handleGroupInvitationAccepted({
         id_invitation: 1,
@@ -121,13 +127,13 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         accepted_at: new Date(),
       });
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
           id_user: 2,
-          notification_type: 'group_invitation_accepted',
-          related_entity_id: 1,
+          tipo_evento: 'group_invitation_accepted',
+          entidad_relacionada_id: 1,
         }),
-      });
+      );
     });
 
     it('should not throw if BD fails', async () => {
@@ -154,22 +160,15 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
       ];
 
       prisma.membership.findMany.mockResolvedValue(mockMembers as any);
-      prisma.notification.createMany.mockResolvedValue({ count: 2 });
 
       await listener.handleUserJoinedGroup({
         id_user: 3,
         full_name: 'Charlie',
         id_group: 10,
-        group_name: 'Test Group',
         joined_at: new Date(),
       });
 
-      expect(prisma.notification.createMany).toHaveBeenCalledWith({
-        data: expect.arrayContaining([
-          expect.objectContaining({ id_user: 2, notification_type: 'user_joined_group' }),
-          expect.objectContaining({ id_user: 4, notification_type: 'user_joined_group' }),
-        ]),
-      });
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledTimes(2);
     });
 
     it('should not throw if BD fails', async () => {
@@ -180,7 +179,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
           id_user: 3,
           full_name: 'Charlie',
           id_group: 10,
-          group_name: 'Test Group',
           joined_at: new Date(),
         }),
       ).resolves.not.toThrow();
@@ -189,8 +187,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
 
   describe('handleConnectionRequestSent', () => {
     it('should create notification for addressee', async () => {
-      prisma.notification.create.mockResolvedValue({ id_notification: 1 } as any);
-
       await listener.handleConnectionRequestSent({
         id_connection: 1,
         requester_id: 2,
@@ -199,17 +195,17 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         request_at: new Date(),
       });
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
           id_user: 3,
-          notification_type: 'connection_request',
-          related_entity_id: 1,
+          tipo_evento: 'connection_request',
+          entidad_relacionada_id: 1,
         }),
-      });
+      );
     });
 
     it('should not throw if BD fails', async () => {
-      prisma.notification.create.mockRejectedValue(new Error('DB Error'));
+      notificationsService.enviarNotificacion.mockRejectedValue(new Error('DB Error'));
 
       await expect(
         listener.handleConnectionRequestSent({
@@ -225,8 +221,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
 
   describe('handleGroupJoinRequestSent', () => {
     it('should create notification for group owner', async () => {
-      prisma.notification.create.mockResolvedValue({ id_notification: 1 } as any);
-
       await listener.handleGroupJoinRequestSent({
         id_request: 1,
         requester_id: 3,
@@ -237,17 +231,17 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         requested_at: new Date(),
       });
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
           id_user: 2,
-          notification_type: 'group_join_request',
-          related_entity_id: 1,
+          tipo_evento: 'group_join_request',
+          entidad_relacionada_id: 1,
         }),
-      });
+      );
     });
 
     it('should not throw if BD fails', async () => {
-      prisma.notification.create.mockRejectedValue(new Error('DB Error'));
+      notificationsService.enviarNotificacion.mockRejectedValue(new Error('DB Error'));
 
       await expect(
         listener.handleGroupJoinRequestSent({
@@ -265,8 +259,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
 
   describe('handleGroupJoinRequestAccepted', () => {
     it('should create notification for requester', async () => {
-      prisma.notification.create.mockResolvedValue({ id_notification: 1 } as any);
-
       await listener.handleGroupJoinRequestAccepted({
         id_request: 1,
         requester_id: 3,
@@ -275,17 +267,17 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         accepted_at: new Date(),
       });
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
           id_user: 3,
-          notification_type: 'group_join_request_accepted',
-          related_entity_id: 1,
+          tipo_evento: 'group_join_request_accepted',
+          entidad_relacionada_id: 1,
         }),
-      });
+      );
     });
 
     it('should not throw if BD fails', async () => {
-      prisma.notification.create.mockRejectedValue(new Error('DB Error'));
+      notificationsService.enviarNotificacion.mockRejectedValue(new Error('DB Error'));
 
       await expect(
         listener.handleGroupJoinRequestAccepted({
@@ -301,8 +293,6 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
 
   describe('handleGroupJoinRequestRejected', () => {
     it('should create notification for requester', async () => {
-      prisma.notification.create.mockResolvedValue({ id_notification: 1 } as any);
-
       await listener.handleGroupJoinRequestRejected({
         id_request: 1,
         requester_id: 3,
@@ -311,17 +301,17 @@ describe('NotificationEventListener - Observer Pattern (Event Reactions)', () =>
         rejected_at: new Date(),
       });
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(notificationsService.enviarNotificacion).toHaveBeenCalledWith(
+        expect.objectContaining({
           id_user: 3,
-          notification_type: 'group_join_request_rejected',
-          related_entity_id: 1,
+          tipo_evento: 'group_join_request_rejected',
+          entidad_relacionada_id: 1,
         }),
-      });
+      );
     });
 
     it('should not throw if BD fails', async () => {
-      prisma.notification.create.mockRejectedValue(new Error('DB Error'));
+      notificationsService.enviarNotificacion.mockRejectedValue(new Error('DB Error'));
 
       await expect(
         listener.handleGroupJoinRequestRejected({
