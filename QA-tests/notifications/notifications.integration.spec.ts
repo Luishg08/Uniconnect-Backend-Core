@@ -30,6 +30,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { NotificationsController } from 'src/notifications/notifications.controller';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { NOTIFICACION_STRATEGIES } from 'src/notifications/notifications.tokens';
 import { JwtStrategy } from 'src/auth/strategies/jwt.strategy';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
@@ -84,6 +85,7 @@ async function buildApp(prismaMock: ReturnType<typeof createPrismaMock>) {
       { provide: PrismaService, useValue: prismaMock },
       { provide: UsersService, useValue: usersServiceMock },
       { provide: ConfigService, useValue: createConfigServiceMock() },
+      { provide: NOTIFICACION_STRATEGIES, useValue: [] },
     ],
   }).compile();
 
