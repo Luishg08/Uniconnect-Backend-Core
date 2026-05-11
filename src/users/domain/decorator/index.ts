@@ -2,3 +2,8 @@ export * from './interfaces';
 export * from './base-profile';
 export * from './profile-decorator.abstract';
 export * from './verified-profile.decorator';
+export * from './perfil-base';
+export * from './perfil-decorator.abstract';
+export * from './perfil-con-estadisticas.decorator';
+export * from './perfil-con-insignias.decorator';
+export * from './insignias/insignias.factory';
